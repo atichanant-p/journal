@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>My Life Tracker</title>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
 <style>
   :root {
     --bg: #0f0f13;
@@ -20,16 +23,32 @@
     --red: #f76f6f;
     --yellow: #f7d06f;
     --radius: 12px;
-    --shadow: 0 4px 24px rgba(0,0,0,0.4);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
 
+  /* Login Screen */
+  .login-screen { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 999; flex-direction: column; gap: 24px; }
+  .login-screen.hidden { display: none; }
+  .login-box { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 48px 40px; text-align: center; max-width: 360px; width: 90%; }
+  .login-logo { font-size: 48px; margin-bottom: 16px; }
+  .login-title { font-size: 24px; font-weight: 700; color: var(--accent); margin-bottom: 8px; }
+  .login-subtitle { color: var(--text2); font-size: 14px; margin-bottom: 32px; line-height: 1.5; }
+  .btn-google { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; padding: 12px 20px; background: white; color: #333; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; transition: opacity 0.15s; }
+  .btn-google:hover { opacity: 0.9; }
+  .btn-google img { width: 20px; height: 20px; }
+
+  /* App Layout */
   .app { display: flex; height: 100vh; overflow: hidden; }
   .sidebar { width: 220px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; }
-  .sidebar-header { padding: 24px 20px 16px; border-bottom: 1px solid var(--border); }
+  .sidebar-header { padding: 20px 20px 14px; border-bottom: 1px solid var(--border); }
   .sidebar-header h1 { font-size: 18px; font-weight: 700; color: var(--accent); }
   .sidebar-header p { font-size: 12px; color: var(--text2); margin-top: 2px; }
+  .user-info { display: flex; align-items: center; gap: 10px; padding: 12px 20px; border-bottom: 1px solid var(--border); }
+  .user-avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; background: var(--accent); }
+  .user-name { font-size: 13px; font-weight: 500; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .logout-btn { font-size: 11px; color: var(--text2); cursor: pointer; padding: 3px 7px; border-radius: 5px; border: 1px solid var(--border); background: transparent; color: var(--text2); white-space: nowrap; }
+  .logout-btn:hover { color: var(--red); border-color: var(--red); }
   .nav { flex: 1; padding: 12px 0; overflow-y: auto; }
   .nav-section { padding: 8px 16px 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text2); }
   .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 20px; cursor: pointer; color: var(--text2); font-size: 14px; transition: all 0.15s; border-left: 3px solid transparent; }
@@ -61,7 +80,6 @@
   .form-group { flex: 1; min-width: 140px; display: flex; flex-direction: column; gap: 6px; }
   label { font-size: 12px; color: var(--text2); font-weight: 500; }
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
   .empty { text-align: center; padding: 40px; color: var(--text2); font-size: 14px; }
 
   .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
@@ -147,65 +165,48 @@
   .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; width: 500px; max-width: 90vw; }
   .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
   .modal-header h3 { font-size: 18px; margin: 0; color: var(--text); }
-  .modal-close { cursor: pointer; color: var(--text2); font-size: 20px; background: none; border: none; color: var(--text2); }
+  .modal-close { cursor: pointer; font-size: 20px; background: none; border: none; color: var(--text2); }
   .modal-close:hover { color: var(--text); }
   .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
 
   .toast { position: fixed; bottom: 24px; right: 24px; background: var(--surface); border: 1px solid var(--accent); border-radius: 10px; padding: 12px 18px; font-size: 14px; color: var(--text); z-index: 999; opacity: 0; transform: translateY(10px); transition: all 0.3s; pointer-events: none; }
   .toast.show { opacity: 1; transform: translateY(0); }
 
+  .sync-indicator { font-size: 11px; color: var(--text2); padding: 8px 20px; display: flex; align-items: center; gap: 6px; }
+  .sync-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+  .sync-dot.syncing { background: var(--yellow); animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
   @media (max-width: 700px) {
-    /* Hide sidebar, show bottom nav instead */
     .sidebar { display: none; }
     .app { flex-direction: column; }
     .main { flex: 1; overflow-y: auto; padding-bottom: 70px; }
     .page { padding: 16px; max-width: 100%; }
-
-    /* Bottom navigation bar */
     .bottom-nav { display: flex; position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface); border-top: 1px solid var(--border); z-index: 50; height: 64px; }
     .bottom-nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; cursor: pointer; color: var(--text2); font-size: 10px; padding: 8px 4px; border-top: 2px solid transparent; }
     .bottom-nav-item.active { color: var(--accent); border-top-color: var(--accent); }
     .bottom-nav-item .icon { font-size: 20px; }
-
-    /* Layout fixes */
     .stat-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
-    .grid2, .grid3 { grid-template-columns: 1fr; }
+    .grid2 { grid-template-columns: 1fr; }
     .form-row { flex-direction: column; gap: 8px; }
     .form-group { min-width: unset; }
-
-    /* Todo input stacks */
     .todo-input-row { flex-wrap: wrap; }
     .todo-input-row input { flex: 1 1 100%; }
-    .todo-input-row select { flex: 1; }
-    .todo-input-row .btn { flex: 1; justify-content: center; }
-
-    /* Page header on mobile */
+    .todo-input-row select, .todo-input-row .btn { flex: 1; justify-content: center; }
     .page-header { margin-bottom: 16px; }
-    .page-header[style*="flex"] { flex-direction: column; gap: 12px; }
     h2 { font-size: 20px; }
-
-    /* Mood grid stays 5 cols but smaller */
     .mood-grid { gap: 6px; }
     .mood-btn { padding: 8px 4px; font-size: 10px; }
     .mood-btn .emoji { font-size: 22px; }
-
-    /* Cards */
     .card { padding: 14px; }
-
-    /* Week strip */
     .week-strip { gap: 4px; }
     .day-cell { padding: 6px 2px; }
-
-    /* Tabs */
     .tabs { width: 100%; }
     .tab { flex: 1; text-align: center; }
-
-    /* Modal full screen on mobile */
     .modal { width: 100%; max-width: 100%; margin: 0; border-radius: 16px 16px 0 0; position: fixed; bottom: 0; left: 0; right: 0; max-height: 90vh; overflow-y: auto; }
     .modal-overlay.open { align-items: flex-end; }
-
-    /* Stat cards */
     .stat-card .value { font-size: 22px; }
+    .login-box { padding: 32px 24px; }
   }
   @media (min-width: 701px) {
     .bottom-nav { display: none; }
@@ -213,44 +214,51 @@
 </style>
 </head>
 <body>
-<div class="app">
+
+<!-- Login Screen -->
+<div class="login-screen" id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">✦</div>
+    <div class="login-title">My Life Tracker</div>
+    <div class="login-subtitle">Sign in to access your personal dashboard. Your data syncs across all your devices.</div>
+    <button class="btn-google" onclick="signInWithGoogle()">
+      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" />
+      Continue with Google
+    </button>
+  </div>
+</div>
+
+<!-- Main App -->
+<div class="app" id="main-app" style="display:none">
   <div class="sidebar">
     <div class="sidebar-header">
       <h1>✦ My Life</h1>
       <p id="sidebar-date"></p>
     </div>
+    <div class="user-info">
+      <img class="user-avatar" id="user-avatar" src="" alt="" />
+      <span class="user-name" id="user-name"></span>
+      <button class="logout-btn" onclick="signOut()">Logout</button>
+    </div>
+    <div class="sync-indicator"><div class="sync-dot" id="sync-dot"></div><span id="sync-label">Synced</span></div>
     <nav class="nav">
       <div class="nav-section">Overview</div>
-      <div class="nav-item active" onclick="navigate('dashboard')">
-        <span class="icon">🏠</span><span>Dashboard</span>
-      </div>
+      <div class="nav-item active" onclick="navigate('dashboard')"><span class="icon">🏠</span><span>Dashboard</span></div>
       <div class="nav-section">Daily</div>
-      <div class="nav-item" onclick="navigate('todos')">
-        <span class="icon">✅</span><span>To-Do List</span>
-      </div>
-      <div class="nav-item" onclick="navigate('mood')">
-        <span class="icon">😊</span><span>Mood Tracker</span>
-      </div>
-      <div class="nav-item" onclick="navigate('journal')">
-        <span class="icon">📓</span><span>Journal</span>
-      </div>
+      <div class="nav-item" onclick="navigate('todos')"><span class="icon">✅</span><span>To-Do List</span></div>
+      <div class="nav-item" onclick="navigate('mood')"><span class="icon">😊</span><span>Mood Tracker</span></div>
+      <div class="nav-item" onclick="navigate('journal')"><span class="icon">📓</span><span>Journal</span></div>
       <div class="nav-section">Health</div>
-      <div class="nav-item" onclick="navigate('exercise')">
-        <span class="icon">💪</span><span>Exercise</span>
-      </div>
+      <div class="nav-item" onclick="navigate('exercise')"><span class="icon">💪</span><span>Exercise</span></div>
       <div class="nav-section">Finance</div>
-      <div class="nav-item" onclick="navigate('salary')">
-        <span class="icon">💰</span><span>Salary & Budget</span>
-      </div>
+      <div class="nav-item" onclick="navigate('salary')"><span class="icon">💰</span><span>Salary & Budget</span></div>
       <div class="nav-section">Education</div>
-      <div class="nav-item" onclick="navigate('mba')">
-        <span class="icon">🎓</span><span>MBA Tracker</span>
-      </div>
+      <div class="nav-item" onclick="navigate('mba')"><span class="icon">🎓</span><span>MBA Tracker</span></div>
     </nav>
   </div>
 
   <div class="main">
-
+    <!-- Dashboard -->
     <div class="page active" id="page-dashboard">
       <div class="page-header">
         <h2>Good <span id="greeting-time"></span>! 👋</h2>
@@ -259,33 +267,19 @@
       <div class="stat-grid" id="dash-stats"></div>
       <div class="grid2">
         <div>
-          <div class="card">
-            <div class="card-title">Today's Tasks</div>
-            <div id="dash-todos"></div>
-          </div>
-          <div class="card">
-            <div class="card-title">Recent Mood</div>
-            <div id="dash-mood"></div>
-          </div>
+          <div class="card"><div class="card-title">Today's Tasks</div><div id="dash-todos"></div></div>
+          <div class="card"><div class="card-title">Recent Mood</div><div id="dash-mood"></div></div>
         </div>
         <div>
-          <div class="card">
-            <div class="card-title">Latest Journal</div>
-            <div id="dash-journal"></div>
-          </div>
-          <div class="card">
-            <div class="card-title">This Week's Exercise</div>
-            <div id="dash-exercise"></div>
-          </div>
+          <div class="card"><div class="card-title">Latest Journal</div><div id="dash-journal"></div></div>
+          <div class="card"><div class="card-title">This Week's Exercise</div><div id="dash-exercise"></div></div>
         </div>
       </div>
     </div>
 
+    <!-- Todos -->
     <div class="page" id="page-todos">
-      <div class="page-header">
-        <h2>To-Do List</h2>
-        <div class="date-subtitle">Stay on top of your goals</div>
-      </div>
+      <div class="page-header"><h2>To-Do List</h2><div class="date-subtitle">Stay on top of your goals</div></div>
       <div class="tabs">
         <div class="tab active" onclick="switchTodoTab('today', this)">Today</div>
         <div class="tab" onclick="switchTodoTab('week', this)">This Week</div>
@@ -305,11 +299,9 @@
       </div>
     </div>
 
+    <!-- Mood -->
     <div class="page" id="page-mood">
-      <div class="page-header">
-        <h2>Mood Tracker</h2>
-        <div class="date-subtitle">How are you feeling?</div>
-      </div>
+      <div class="page-header"><h2>Mood Tracker</h2><div class="date-subtitle">How are you feeling?</div></div>
       <div class="card">
         <div class="card-title">How do you feel right now?</div>
         <div class="mood-grid">
@@ -325,51 +317,33 @@
         </div>
         <button class="btn btn-primary" onclick="logMood()">Log Mood</button>
       </div>
-      <div class="card">
-        <div class="card-title">Mood History</div>
-        <div id="mood-history"></div>
-      </div>
+      <div class="card"><div class="card-title">Mood History</div><div id="mood-history"></div></div>
     </div>
 
+    <!-- Journal -->
     <div class="page" id="page-journal">
-      <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start">
-        <div>
-          <h2>Journal</h2>
-          <div class="date-subtitle">Your private thoughts & reflections</div>
-        </div>
+      <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px">
+        <div><h2>Journal</h2><div class="date-subtitle">Your private thoughts & reflections</div></div>
         <button class="btn btn-primary" onclick="newJournalEntry()">+ New Entry</button>
       </div>
       <div id="journal-editor" class="journal-editor">
         <div class="card">
-          <div class="form-group" style="margin-bottom:12px">
-            <label>Title</label>
-            <input id="journal-title-input" placeholder="Entry title..." />
-          </div>
-          <div class="form-group" style="margin-bottom:12px">
-            <label>Content</label>
-            <textarea id="journal-content-input" style="min-height:200px" placeholder="Write your thoughts..."></textarea>
-          </div>
-          <div class="form-group" style="margin-bottom:16px">
-            <label>Tags (comma separated)</label>
-            <input id="journal-tags-input" placeholder="work, personal, goals..." />
-          </div>
-          <div style="display:flex;gap:8px">
+          <div class="form-group" style="margin-bottom:12px"><label>Title</label><input id="journal-title-input" placeholder="Entry title..." /></div>
+          <div class="form-group" style="margin-bottom:12px"><label>Content</label><textarea id="journal-content-input" style="min-height:200px" placeholder="Write your thoughts..."></textarea></div>
+          <div class="form-group" style="margin-bottom:16px"><label>Tags (comma separated)</label><input id="journal-tags-input" placeholder="work, personal, goals..." /></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn btn-primary" onclick="saveJournalEntry()">Save Entry</button>
             <button class="btn btn-ghost" onclick="cancelJournal()">Cancel</button>
             <button class="btn btn-danger btn-sm" id="journal-delete-btn" onclick="deleteJournalEntry()" style="display:none;margin-left:auto">Delete</button>
           </div>
         </div>
       </div>
-      <div class="card" id="journal-list-card">
-        <div id="journal-list"></div>
-      </div>
+      <div class="card" id="journal-list-card"><div id="journal-list"></div></div>
     </div>
 
+    <!-- Exercise -->
     <div class="page" id="page-exercise">
-      <div class="page-header">
-        <h2>Exercise Tracker</h2>
-        <div class="date-subtitle">Build healthy habits</div>
-      </div>
+      <div class="page-header"><h2>Exercise Tracker</h2><div class="date-subtitle">Build healthy habits</div></div>
       <div class="week-strip" id="exercise-week-strip"></div>
       <div class="grid2">
         <div class="card">
@@ -390,65 +364,33 @@
             </select>
           </div>
           <div class="form-row" style="margin-bottom:10px">
-            <div class="form-group">
-              <label>Name</label>
-              <input id="ex-name" placeholder="Morning run..." />
-            </div>
-            <div class="form-group">
-              <label>Duration (min)</label>
-              <input id="ex-duration" type="number" placeholder="30" min="1" />
-            </div>
+            <div class="form-group"><label>Name</label><input id="ex-name" placeholder="Morning run..." /></div>
+            <div class="form-group"><label>Duration (min)</label><input id="ex-duration" type="number" placeholder="30" min="1" /></div>
           </div>
           <div class="form-row" style="margin-bottom:14px">
-            <div class="form-group">
-              <label>Calories burned</label>
-              <input id="ex-calories" type="number" placeholder="300" />
-            </div>
-            <div class="form-group">
-              <label>Distance (km, optional)</label>
-              <input id="ex-distance" type="number" placeholder="5" step="0.1" />
-            </div>
+            <div class="form-group"><label>Calories burned</label><input id="ex-calories" type="number" placeholder="300" /></div>
+            <div class="form-group"><label>Distance (km)</label><input id="ex-distance" type="number" placeholder="5" step="0.1" /></div>
           </div>
-          <div class="form-group" style="margin-bottom:14px">
-            <label>Notes</label>
-            <input id="ex-notes" placeholder="Felt great today..." />
-          </div>
+          <div class="form-group" style="margin-bottom:14px"><label>Notes</label><input id="ex-notes" placeholder="Felt great today..." /></div>
           <button class="btn btn-primary" onclick="logExercise()">Log Workout</button>
         </div>
         <div>
-          <div class="card">
-            <div class="card-title">Stats This Week</div>
-            <div id="exercise-stats"></div>
-          </div>
-          <div class="card">
-            <div class="card-title">Recent Workouts</div>
-            <div id="exercise-list"></div>
-          </div>
+          <div class="card"><div class="card-title">Stats This Week</div><div id="exercise-stats"></div></div>
+          <div class="card"><div class="card-title">Recent Workouts</div><div id="exercise-list"></div></div>
         </div>
       </div>
     </div>
 
+    <!-- Salary -->
     <div class="page" id="page-salary">
-      <div class="page-header">
-        <h2>Salary & Budget</h2>
-        <div class="date-subtitle">Track your financial health</div>
-      </div>
+      <div class="page-header"><h2>Salary & Budget</h2><div class="date-subtitle">Track your financial health</div></div>
       <div class="grid2">
         <div>
           <div class="card">
             <div class="card-title">Monthly Income Setup</div>
-            <div class="form-group" style="margin-bottom:10px">
-              <label>Monthly Salary (THB)</label>
-              <input id="salary-gross" type="number" placeholder="50000" oninput="updateSalaryCalc()" />
-            </div>
-            <div class="form-group" style="margin-bottom:10px">
-              <label>Other Income (THB)</label>
-              <input id="salary-other" type="number" placeholder="0" oninput="updateSalaryCalc()" />
-            </div>
-            <div class="form-group" style="margin-bottom:14px">
-              <label>Monthly Savings Goal (THB)</label>
-              <input id="salary-savings-goal" type="number" placeholder="10000" oninput="updateSalaryCalc()" />
-            </div>
+            <div class="form-group" style="margin-bottom:10px"><label>Monthly Salary (THB)</label><input id="salary-gross" type="number" placeholder="50000" /></div>
+            <div class="form-group" style="margin-bottom:10px"><label>Other Income (THB)</label><input id="salary-other" type="number" placeholder="0" /></div>
+            <div class="form-group" style="margin-bottom:14px"><label>Monthly Savings Goal (THB)</label><input id="salary-savings-goal" type="number" placeholder="10000" /></div>
             <button class="btn btn-primary" onclick="saveSalarySetup()">Save Setup</button>
           </div>
           <div class="card">
@@ -457,112 +399,64 @@
               <div class="form-group">
                 <label>Category</label>
                 <select id="exp-cat">
-                  <option>Food</option>
-                  <option>Transport</option>
-                  <option>Housing</option>
-                  <option>Entertainment</option>
-                  <option>Education</option>
-                  <option>Health</option>
-                  <option>Shopping</option>
-                  <option>Other</option>
+                  <option>Food</option><option>Transport</option><option>Housing</option>
+                  <option>Entertainment</option><option>Education</option><option>Health</option>
+                  <option>Shopping</option><option>Other</option>
                 </select>
               </div>
-              <div class="form-group">
-                <label>Amount (THB)</label>
-                <input id="exp-amount" type="number" placeholder="500" />
-              </div>
+              <div class="form-group"><label>Amount (THB)</label><input id="exp-amount" type="number" placeholder="500" /></div>
             </div>
-            <div class="form-group" style="margin-bottom:10px">
-              <label>Description</label>
-              <input id="exp-desc" placeholder="Lunch with colleagues..." />
-            </div>
+            <div class="form-group" style="margin-bottom:10px"><label>Description</label><input id="exp-desc" placeholder="Lunch with colleagues..." /></div>
             <button class="btn btn-primary" onclick="addExpense()">Add Expense</button>
           </div>
         </div>
         <div>
-          <div class="card">
-            <div class="card-title">This Month Overview</div>
-            <div id="salary-overview"></div>
-          </div>
-          <div class="card">
-            <div class="card-title">Recent Expenses</div>
-            <div id="expense-list"></div>
-          </div>
+          <div class="card"><div class="card-title">This Month Overview</div><div id="salary-overview"></div></div>
+          <div class="card"><div class="card-title">Recent Expenses</div><div id="expense-list"></div></div>
         </div>
       </div>
     </div>
 
+    <!-- MBA -->
     <div class="page" id="page-mba">
-      <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start">
-        <div>
-          <h2>MBA Tracker</h2>
-          <div class="date-subtitle">Your academic journey</div>
-        </div>
+      <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px">
+        <div><h2>MBA Tracker</h2><div class="date-subtitle">Your academic journey</div></div>
         <button class="btn btn-primary" onclick="openAddCourse()">+ Add Course</button>
       </div>
       <div class="grid2" style="margin-bottom:16px">
         <div class="card" style="text-align:center">
-          <div class="gpa-display">
-            <div class="gpa-number" id="mba-gpa">-</div>
-            <div class="gpa-label">Cumulative GPA</div>
-          </div>
+          <div class="gpa-display"><div class="gpa-number" id="mba-gpa">-</div><div class="gpa-label">Cumulative GPA</div></div>
         </div>
-        <div class="card">
-          <div class="card-title">Progress</div>
-          <div id="mba-progress-info"></div>
-        </div>
+        <div class="card"><div class="card-title">Progress</div><div id="mba-progress-info"></div></div>
       </div>
       <div id="mba-courses"></div>
     </div>
-
   </div>
 </div>
 
+<!-- Add Course Modal -->
 <div class="modal-overlay" id="modal-course">
   <div class="modal">
-    <div class="modal-header">
-      <h3>Add Course</h3>
-      <button class="modal-close" onclick="closeModal('modal-course')">✕</button>
-    </div>
-    <div class="form-group" style="margin-bottom:10px">
-      <label>Course Name</label>
-      <input id="course-name" placeholder="Financial Management" />
-    </div>
+    <div class="modal-header"><h3>Add Course</h3><button class="modal-close" onclick="closeModal('modal-course')">✕</button></div>
+    <div class="form-group" style="margin-bottom:10px"><label>Course Name</label><input id="course-name" placeholder="Financial Management" /></div>
     <div class="form-row" style="margin-bottom:10px">
-      <div class="form-group">
-        <label>Credits</label>
-        <input id="course-credits" type="number" placeholder="3" min="1" max="6" />
-      </div>
+      <div class="form-group"><label>Credits</label><input id="course-credits" type="number" placeholder="3" min="1" max="6" /></div>
       <div class="form-group">
         <label>Grade</label>
         <select id="course-grade">
           <option value="">In Progress</option>
-          <option value="A">A (4.0)</option>
-          <option value="A-">A- (3.7)</option>
-          <option value="B+">B+ (3.3)</option>
-          <option value="B">B (3.0)</option>
-          <option value="B-">B- (2.7)</option>
-          <option value="C+">C+ (2.3)</option>
-          <option value="C">C (2.0)</option>
-          <option value="D">D (1.0)</option>
-          <option value="F">F (0.0)</option>
+          <option value="A">A (4.0)</option><option value="A-">A- (3.7)</option>
+          <option value="B+">B+ (3.3)</option><option value="B">B (3.0)</option><option value="B-">B- (2.7)</option>
+          <option value="C+">C+ (2.3)</option><option value="C">C (2.0)</option>
+          <option value="D">D (1.0)</option><option value="F">F (0.0)</option>
         </select>
       </div>
     </div>
     <div class="form-row" style="margin-bottom:10px">
-      <div class="form-group">
-        <label>Semester</label>
-        <input id="course-semester" placeholder="2024/1" />
-      </div>
-      <div class="form-group">
-        <label>Progress % (if in progress)</label>
-        <input id="course-progress" type="number" placeholder="60" min="0" max="100" />
-      </div>
+      <div class="form-group"><label>Semester</label><input id="course-semester" placeholder="2024/1" /></div>
+      <div class="form-group"><label>Progress % (if in progress)</label><input id="course-progress" type="number" placeholder="60" min="0" max="100" /></div>
     </div>
-    <div class="form-group" style="margin-bottom:10px">
-      <label>Notes</label>
-      <input id="course-notes" placeholder="Group project, final exam..." />
-    </div>
+    <div class="form-group" style="margin-bottom:10px"><label>Notes</label><input id="course-notes" placeholder="Group project, final exam..." /></div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('modal-course')">Cancel</button>
       <button class="btn btn-primary" onclick="saveCourse()">Save Course</button>
@@ -570,60 +464,107 @@
   </div>
 </div>
 
-<div class="toast" id="toast"></div>
-
 <!-- Mobile Bottom Nav -->
 <div class="bottom-nav">
-  <div class="bottom-nav-item active" onclick="navigate('dashboard', this)">
-    <span class="icon">🏠</span><span>Home</span>
-  </div>
-  <div class="bottom-nav-item" onclick="navigate('todos', this)">
-    <span class="icon">✅</span><span>Tasks</span>
-  </div>
-  <div class="bottom-nav-item" onclick="navigate('mood', this)">
-    <span class="icon">😊</span><span>Mood</span>
-  </div>
-  <div class="bottom-nav-item" onclick="navigate('journal', this)">
-    <span class="icon">📓</span><span>Journal</span>
-  </div>
-  <div class="bottom-nav-item" onclick="navigate('exercise', this)">
-    <span class="icon">💪</span><span>Exercise</span>
-  </div>
-  <div class="bottom-nav-item" onclick="navigate('salary', this)">
-    <span class="icon">💰</span><span>Budget</span>
-  </div>
-  <div class="bottom-nav-item" onclick="navigate('mba', this)">
-    <span class="icon">🎓</span><span>MBA</span>
-  </div>
+  <div class="bottom-nav-item active" onclick="navigate('dashboard')"><span class="icon">🏠</span><span>Home</span></div>
+  <div class="bottom-nav-item" onclick="navigate('todos')"><span class="icon">✅</span><span>Tasks</span></div>
+  <div class="bottom-nav-item" onclick="navigate('mood')"><span class="icon">😊</span><span>Mood</span></div>
+  <div class="bottom-nav-item" onclick="navigate('journal')"><span class="icon">📓</span><span>Journal</span></div>
+  <div class="bottom-nav-item" onclick="navigate('exercise')"><span class="icon">💪</span><span>Exercise</span></div>
+  <div class="bottom-nav-item" onclick="navigate('salary')"><span class="icon">💰</span><span>Budget</span></div>
+  <div class="bottom-nav-item" onclick="navigate('mba')"><span class="icon">🎓</span><span>MBA</span></div>
 </div>
 
+<div class="toast" id="toast"></div>
+
 <script>
-const store = {
-  get: (k, def) => { try { return JSON.parse(localStorage.getItem(k)) ?? def; } catch { return def; } },
-  set: (k, v) => localStorage.setItem(k, JSON.stringify(v)),
+// ── Firebase Setup ────────────────────────────────────────────────────────────
+const firebaseConfig = {
+  apiKey: "AIzaSyDxJWhypwLIrt8KL0tC5R-9lYMP-Hn6iIQ",
+  authDomain: "journal-9ca60.firebaseapp.com",
+  projectId: "journal-9ca60",
+  storageBucket: "journal-9ca60.firebasestorage.app",
+  messagingSenderId: "44441160664",
+  appId: "1:44441160664:web:901f6dce063519368740ad"
 };
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
 
-const MOODS = ['', '😭', '😔', '😐', '😊', '🤩'];
-const MOOD_LABELS = ['', 'Terrible', 'Bad', 'Okay', 'Good', 'Amazing'];
-const GRADE_POINTS = { 'A': 4.0, 'A-': 3.7, 'B+': 3.3, 'B': 3.0, 'B-': 2.7, 'C+': 2.3, 'C': 2.0, 'D': 1.0, 'F': 0.0 };
+// ── Local Cache (kept in sync by Firestore listeners) ────────────────────────
+let uid = null;
+let cache = { todos: [], moods: [], journals: [], exercises: [], expenses: [], config: {} };
+let listeners = [];
 
-let currentTodoTab = 'today';
-let selectedMood = 0;
-let editingJournalId = null;
-let editingCourseId = null;
+// ── Auth ─────────────────────────────────────────────────────────────────────
+function signInWithGoogle() {
+  const provider = new firebase.auth.GoogleAuthProvider();
+  auth.signInWithPopup(provider).catch(e => toast('Sign-in failed: ' + e.message));
+}
 
+function signOut() {
+  if (!confirm('Sign out?')) return;
+  listeners.forEach(u => u());
+  listeners = [];
+  auth.signOut();
+}
+
+auth.onAuthStateChanged(user => {
+  if (user) {
+    uid = user.uid;
+    document.getElementById('login-screen').classList.add('hidden');
+    document.getElementById('main-app').style.display = 'flex';
+    document.getElementById('user-name').textContent = user.displayName || user.email;
+    document.getElementById('user-avatar').src = user.photoURL || '';
+    initListeners();
+    initUI();
+  } else {
+    uid = null;
+    document.getElementById('login-screen').classList.remove('hidden');
+    document.getElementById('main-app').style.display = 'none';
+  }
+});
+
+// ── Firestore Helpers ─────────────────────────────────────────────────────────
+function col(name) { return db.collection('users').doc(uid).collection(name); }
+function cfg() { return db.collection('users').doc(uid); }
+
+function setSyncing(active) {
+  const dot = document.getElementById('sync-dot');
+  const label = document.getElementById('sync-label');
+  if (!dot) return;
+  if (active) { dot.classList.add('syncing'); label.textContent = 'Syncing...'; }
+  else { dot.classList.remove('syncing'); label.textContent = 'Synced'; }
+}
+
+// ── Realtime Listeners ────────────────────────────────────────────────────────
+function initListeners() {
+  const collections = ['todos', 'moods', 'journals', 'exercises', 'expenses'];
+  collections.forEach(name => {
+    const unsub = col(name).onSnapshot(snap => {
+      cache[name] = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      refreshCurrentPage();
+    });
+    listeners.push(unsub);
+  });
+
+  const unsub = cfg().onSnapshot(doc => {
+    cache.config = doc.data() || {};
+    refreshCurrentPage();
+  });
+  listeners.push(unsub);
+}
+
+let currentPage = 'dashboard';
+function refreshCurrentPage() { renderPage(currentPage); }
+
+// ── Navigation ────────────────────────────────────────────────────────────────
 function navigate(page) {
+  currentPage = page;
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item, .bottom-nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('page-' + page).classList.add('active');
   event.currentTarget.classList.add('active');
-  // sync the other nav (sidebar vs bottom)
-  const allNavItems = document.querySelectorAll('.nav-item, .bottom-nav-item');
-  allNavItems.forEach(n => {
-    if (n !== event.currentTarget && n.getAttribute('onclick') === `navigate('${page}', this)` || n.getAttribute('onclick') === `navigate('${page}')`) {
-      n.classList.add('active');
-    }
-  });
   renderPage(page);
 }
 
@@ -637,91 +578,114 @@ function renderPage(page) {
   else if (page === 'mba') renderMBA();
 }
 
+// ── Utils ─────────────────────────────────────────────────────────────────────
 function today() { return new Date().toISOString().slice(0, 10); }
 function fmtDate(d) { return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }); }
-function fmtDateTime(ts) { return new Date(ts).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); }
-function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 5); }
+function fmtDateTime(ts) {
+  if (!ts) return '';
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+function uid2() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 5); }
 function fmt(n) { return Number(n || 0).toLocaleString('th-TH'); }
 
 function toast(msg) {
   const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
+  t.textContent = msg; t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2500);
 }
-
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
+function initUI() {
+  const now = new Date();
+  document.getElementById('sidebar-date').textContent = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  renderDashboard();
+  renderTodos();
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
 function renderDashboard() {
   const now = new Date();
   const h = now.getHours();
   const greeting = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
-  document.getElementById('greeting-time').textContent = greeting;
-  document.getElementById('today-full').textContent = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  const el = document.getElementById('greeting-time');
+  if (el) el.textContent = greeting;
+  const tf = document.getElementById('today-full');
+  if (tf) tf.textContent = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
-  const todos = store.get('todos', []).filter(t => t.timeframe === 'today');
+  const todos = cache.todos.filter(t => t.timeframe === 'today');
   const done = todos.filter(t => t.done).length;
-  const moods = store.get('moods', []);
+  const moods = cache.moods.slice().sort((a,b) => (a.ts?.seconds||0) - (b.ts?.seconds||0));
   const lastMood = moods[moods.length - 1];
-  const exercises = store.get('exercises', []);
   const now2 = new Date();
   const mon = new Date(now2); mon.setDate(now2.getDate() - (now2.getDay() === 0 ? 6 : now2.getDay() - 1));
-  const thisWeekEx = exercises.filter(e => new Date(e.date) >= mon);
+  const thisWeekEx = cache.exercises.filter(e => e.date >= mon.toISOString().slice(0,10));
 
-  document.getElementById('dash-stats').innerHTML = `
+  const ds = document.getElementById('dash-stats');
+  if (ds) ds.innerHTML = `
     <div class="stat-card accent"><div class="value">${done}/${todos.length}</div><div class="label">Tasks Today</div></div>
     <div class="stat-card green"><div class="value">${thisWeekEx.length}</div><div class="label">Workouts This Week</div></div>
     <div class="stat-card orange"><div class="value">${lastMood ? MOODS[lastMood.score] : '—'}</div><div class="label">Last Mood</div></div>
-    <div class="stat-card pink"><div class="value">${store.get('journals', []).length}</div><div class="label">Journal Entries</div></div>
+    <div class="stat-card pink"><div class="value">${cache.journals.length}</div><div class="label">Journal Entries</div></div>
   `;
 
-  const todayTodos = todos.slice(0, 5);
-  document.getElementById('dash-todos').innerHTML = todayTodos.length
-    ? todayTodos.map(t => `<div class="todo-item"><input type="checkbox" class="todo-cb" ${t.done ? 'checked' : ''} disabled /><span class="todo-text ${t.done ? 'done' : ''}">${t.text}</span></div>`).join('')
+  const dt = document.getElementById('dash-todos');
+  if (dt) dt.innerHTML = todos.length
+    ? todos.slice(0,5).map(t => `<div class="todo-item"><input type="checkbox" class="todo-cb" ${t.done?'checked':''} disabled /><span class="todo-text ${t.done?'done':''}">${t.text}</span></div>`).join('')
     : '<div class="empty">No tasks for today</div>';
 
-  const recentMoods = moods.slice(-5).reverse();
-  document.getElementById('dash-mood').innerHTML = recentMoods.length
-    ? recentMoods.map(m => `<div class="mood-history-item"><span class="mood-emoji-lg">${MOODS[m.score]}</span><span>${MOOD_LABELS[m.score]}</span><span style="margin-left:auto;font-size:12px;color:var(--text2)">${fmtDateTime(m.ts)}</span></div>`).join('')
+  const dm = document.getElementById('dash-mood');
+  if (dm) dm.innerHTML = moods.length
+    ? moods.slice(-5).reverse().map(m => `<div class="mood-history-item"><span class="mood-emoji-lg">${MOODS[m.score]}</span><span>${MOOD_LABELS[m.score]}</span><span style="margin-left:auto;font-size:12px;color:var(--text2)">${fmtDateTime(m.ts)}</span></div>`).join('')
     : '<div class="empty">No mood logged yet</div>';
 
-  const journals = store.get('journals', []).slice(-1)[0];
-  document.getElementById('dash-journal').innerHTML = journals
-    ? `<div class="journal-date">${fmtDateTime(journals.ts)}</div><div class="journal-title">${journals.title || 'Untitled'}</div><div class="journal-preview">${journals.content}</div>`
+  const sortedJ = cache.journals.slice().sort((a,b) => (a.ts?.seconds||0)-(b.ts?.seconds||0));
+  const lastJ = sortedJ[sortedJ.length-1];
+  const dj = document.getElementById('dash-journal');
+  if (dj) dj.innerHTML = lastJ
+    ? `<div class="journal-date">${fmtDateTime(lastJ.ts)}</div><div class="journal-title">${lastJ.title||'Untitled'}</div><div class="journal-preview">${lastJ.content}</div>`
     : '<div class="empty">No journal entries yet</div>';
 
-  const totalCal = thisWeekEx.reduce((s, e) => s + (e.calories || 0), 0);
-  const totalMin = thisWeekEx.reduce((s, e) => s + (e.duration || 0), 0);
-  document.getElementById('dash-exercise').innerHTML = thisWeekEx.length
+  const totalCal = thisWeekEx.reduce((s,e) => s+(e.calories||0), 0);
+  const totalMin = thisWeekEx.reduce((s,e) => s+(e.duration||0), 0);
+  const de = document.getElementById('dash-exercise');
+  if (de) de.innerHTML = thisWeekEx.length
     ? `<div class="salary-row"><span class="salary-label">Workouts</span><span>${thisWeekEx.length}</span></div>
        <div class="salary-row"><span class="salary-label">Total Time</span><span>${totalMin} min</span></div>
-       <div class="salary-row"><span class="salary-label">Calories Burned</span><span>${fmt(totalCal)} kcal</span></div>`
-    : '<div class="empty">No workouts logged this week</div>';
+       <div class="salary-row"><span class="salary-label">Calories</span><span>${fmt(totalCal)} kcal</span></div>`
+    : '<div class="empty">No workouts this week</div>';
 }
 
-function addTodo() {
+// ── Todos ─────────────────────────────────────────────────────────────────────
+const MOODS = ['','😭','😔','😐','😊','🤩'];
+const MOOD_LABELS = ['','Terrible','Bad','Okay','Good','Amazing'];
+const GRADE_POINTS = {'A':4.0,'A-':3.7,'B+':3.3,'B':3.0,'B-':2.7,'C+':2.3,'C':2.0,'D':1.0,'F':0.0};
+let currentTodoTab = 'today';
+let selectedMood = 0;
+let editingJournalId = null;
+let editingCourseId = null;
+
+async function addTodo() {
   const input = document.getElementById('todo-input');
   const text = input.value.trim();
   if (!text) return;
-  const todos = store.get('todos', []);
-  todos.push({ id: uid(), text, done: false, priority: document.getElementById('todo-priority').value, timeframe: currentTodoTab, created: Date.now() });
-  store.set('todos', todos);
+  setSyncing(true);
+  await col('todos').add({ text, done: false, priority: document.getElementById('todo-priority').value, timeframe: currentTodoTab, ts: firebase.firestore.FieldValue.serverTimestamp() });
+  setSyncing(false);
   input.value = '';
-  renderTodos();
   toast('Task added!');
 }
 
-function toggleTodo(id) {
-  const todos = store.get('todos', []);
-  const t = todos.find(t => t.id === id);
-  if (t) t.done = !t.done;
-  store.set('todos', todos);
-  renderTodos();
+async function toggleTodo(id, done) {
+  setSyncing(true);
+  await col('todos').doc(id).update({ done });
+  setSyncing(false);
 }
 
-function deleteTodo(id) {
-  store.set('todos', store.get('todos', []).filter(t => t.id !== id));
-  renderTodos();
+async function deleteTodo(id) {
+  setSyncing(true);
+  await col('todos').doc(id).delete();
+  setSyncing(false);
 }
 
 function switchTodoTab(tab, el) {
@@ -732,56 +696,63 @@ function switchTodoTab(tab, el) {
 }
 
 function renderTodos() {
-  const todos = store.get('todos', []).filter(t => t.timeframe === currentTodoTab);
-  const pMap = { high: 'p-high', med: 'p-med', low: 'p-low' };
-  const pLabel = { high: 'High', med: 'Med', low: 'Low' };
-  document.getElementById('todo-list').innerHTML = todos.length
+  const todos = cache.todos.filter(t => t.timeframe === currentTodoTab)
+    .sort((a,b) => (a.ts?.seconds||0)-(b.ts?.seconds||0));
+  const pMap = {high:'p-high',med:'p-med',low:'p-low'};
+  const pLabel = {high:'High',med:'Med',low:'Low'};
+  const el = document.getElementById('todo-list');
+  if (!el) return;
+  el.innerHTML = todos.length
     ? todos.map(t => `
       <div class="todo-item">
-        <input type="checkbox" class="todo-cb" ${t.done ? 'checked' : ''} onchange="toggleTodo('${t.id}')" />
-        <span class="todo-text ${t.done ? 'done' : ''}">${t.text}</span>
-        <span class="todo-priority ${pMap[t.priority]}">${pLabel[t.priority]}</span>
+        <input type="checkbox" class="todo-cb" ${t.done?'checked':''} onchange="toggleTodo('${t.id}', this.checked)" />
+        <span class="todo-text ${t.done?'done':''}">${t.text}</span>
+        <span class="todo-priority ${pMap[t.priority]||'p-med'}">${pLabel[t.priority]||'Med'}</span>
         <span class="todo-del" onclick="deleteTodo('${t.id}')">×</span>
       </div>`).join('')
     : '<div class="empty">No tasks yet. Add one above!</div>';
 }
 
+// ── Mood ──────────────────────────────────────────────────────────────────────
 function selectMood(score, el) {
   selectedMood = score;
   document.querySelectorAll('.mood-btn').forEach(b => b.classList.remove('selected'));
   el.classList.add('selected');
 }
 
-function logMood() {
+async function logMood() {
   if (!selectedMood) { toast('Please select a mood first'); return; }
-  const moods = store.get('moods', []);
-  moods.push({ id: uid(), score: selectedMood, note: document.getElementById('mood-note').value.trim(), ts: Date.now() });
-  store.set('moods', moods);
+  setSyncing(true);
+  await col('moods').add({ score: selectedMood, note: document.getElementById('mood-note').value.trim(), ts: firebase.firestore.FieldValue.serverTimestamp() });
+  setSyncing(false);
   selectedMood = 0;
   document.querySelectorAll('.mood-btn').forEach(b => b.classList.remove('selected'));
   document.getElementById('mood-note').value = '';
-  renderMoodHistory();
   toast('Mood logged!');
 }
 
-function deleteMood(id) {
-  store.set('moods', store.get('moods', []).filter(m => m.id !== id));
-  renderMoodHistory();
+async function deleteMood(id) {
+  setSyncing(true);
+  await col('moods').doc(id).delete();
+  setSyncing(false);
 }
 
 function renderMoodHistory() {
-  const moods = store.get('moods', []).slice().reverse();
-  document.getElementById('mood-history').innerHTML = moods.length
+  const moods = cache.moods.slice().sort((a,b) => (b.ts?.seconds||0)-(a.ts?.seconds||0));
+  const el = document.getElementById('mood-history');
+  if (!el) return;
+  el.innerHTML = moods.length
     ? moods.map(m => `
       <div class="mood-history-item">
         <span class="mood-emoji-lg">${MOODS[m.score]}</span>
-        <div style="flex:1"><div style="font-weight:600">${MOOD_LABELS[m.score]}</div>${m.note ? `<div style="font-size:12px;color:var(--text2)">${m.note}</div>` : ''}</div>
+        <div style="flex:1"><div style="font-weight:600">${MOOD_LABELS[m.score]}</div>${m.note?`<div style="font-size:12px;color:var(--text2)">${m.note}</div>`:''}</div>
         <span style="font-size:12px;color:var(--text2)">${fmtDateTime(m.ts)}</span>
         <span class="todo-del" onclick="deleteMood('${m.id}')">×</span>
       </div>`).join('')
     : '<div class="empty">No moods logged yet</div>';
 }
 
+// ── Journal ───────────────────────────────────────────────────────────────────
 function newJournalEntry() {
   editingJournalId = null;
   document.getElementById('journal-title-input').value = '';
@@ -793,41 +764,40 @@ function newJournalEntry() {
 }
 
 function editJournalEntry(id) {
-  const j = store.get('journals', []).find(j => j.id === id);
+  const j = cache.journals.find(j => j.id === id);
   if (!j) return;
   editingJournalId = id;
   document.getElementById('journal-title-input').value = j.title || '';
   document.getElementById('journal-content-input').value = j.content || '';
-  document.getElementById('journal-tags-input').value = (j.tags || []).join(', ');
+  document.getElementById('journal-tags-input').value = (j.tags||[]).join(', ');
   document.getElementById('journal-editor').classList.add('open');
   document.getElementById('journal-list-card').style.display = 'none';
   document.getElementById('journal-delete-btn').style.display = 'inline-flex';
 }
 
-function saveJournalEntry() {
+async function saveJournalEntry() {
   const title = document.getElementById('journal-title-input').value.trim();
   const content = document.getElementById('journal-content-input').value.trim();
   if (!content) { toast('Please write something first'); return; }
-  const tags = document.getElementById('journal-tags-input').value.split(',').map(t => t.trim()).filter(Boolean);
-  const journals = store.get('journals', []);
+  const tags = document.getElementById('journal-tags-input').value.split(',').map(t=>t.trim()).filter(Boolean);
+  setSyncing(true);
   if (editingJournalId) {
-    const j = journals.find(j => j.id === editingJournalId);
-    if (j) { j.title = title; j.content = content; j.tags = tags; j.updated = Date.now(); }
+    await col('journals').doc(editingJournalId).update({ title, content, tags, updated: firebase.firestore.FieldValue.serverTimestamp() });
   } else {
-    journals.push({ id: uid(), title, content, tags, ts: Date.now() });
+    await col('journals').add({ title, content, tags, ts: firebase.firestore.FieldValue.serverTimestamp() });
   }
-  store.set('journals', journals);
+  setSyncing(false);
   cancelJournal();
-  renderJournal();
   toast('Journal saved!');
 }
 
-function deleteJournalEntry() {
+async function deleteJournalEntry() {
   if (!editingJournalId) return;
   if (!confirm('Delete this entry?')) return;
-  store.set('journals', store.get('journals', []).filter(j => j.id !== editingJournalId));
+  setSyncing(true);
+  await col('journals').doc(editingJournalId).delete();
+  setSyncing(false);
   cancelJournal();
-  renderJournal();
   toast('Entry deleted');
 }
 
@@ -838,263 +808,278 @@ function cancelJournal() {
 }
 
 function renderJournal() {
-  const journals = store.get('journals', []).slice().reverse();
-  document.getElementById('journal-list').innerHTML = journals.length
+  const journals = cache.journals.slice().sort((a,b) => (b.ts?.seconds||0)-(a.ts?.seconds||0));
+  const el = document.getElementById('journal-list');
+  if (!el) return;
+  el.innerHTML = journals.length
     ? journals.map(j => `
       <div class="journal-entry" onclick="editJournalEntry('${j.id}')">
-        <div class="journal-date">${fmtDateTime(j.ts)}${j.tags && j.tags.length ? ' · ' + j.tags.map(t => `<span style="color:var(--accent)">#${t}</span>`).join(' ') : ''}</div>
-        <div class="journal-title">${j.title || 'Untitled'}</div>
+        <div class="journal-date">${fmtDateTime(j.ts)}${j.tags&&j.tags.length?' · '+j.tags.map(t=>`<span style="color:var(--accent)">#${t}</span>`).join(' '):''}</div>
+        <div class="journal-title">${j.title||'Untitled'}</div>
         <div class="journal-preview">${j.content}</div>
       </div>`).join('')
     : '<div class="empty">No journal entries yet. Click "+ New Entry" to start writing.</div>';
 }
 
-function logExercise() {
+// ── Exercise ──────────────────────────────────────────────────────────────────
+async function logExercise() {
   const name = document.getElementById('ex-name').value.trim() || document.getElementById('ex-type').options[document.getElementById('ex-type').selectedIndex].text;
   const duration = parseInt(document.getElementById('ex-duration').value) || 0;
   if (!duration) { toast('Please enter duration'); return; }
-  const exercises = store.get('exercises', []);
-  exercises.push({
-    id: uid(), icon: document.getElementById('ex-type').value, name,
-    duration, calories: parseInt(document.getElementById('ex-calories').value) || 0,
-    distance: parseFloat(document.getElementById('ex-distance').value) || 0,
-    notes: document.getElementById('ex-notes').value.trim(), date: today(), ts: Date.now()
+  setSyncing(true);
+  await col('exercises').add({
+    icon: document.getElementById('ex-type').value, name, duration,
+    calories: parseInt(document.getElementById('ex-calories').value)||0,
+    distance: parseFloat(document.getElementById('ex-distance').value)||0,
+    notes: document.getElementById('ex-notes').value.trim(),
+    date: today(), ts: firebase.firestore.FieldValue.serverTimestamp()
   });
-  store.set('exercises', exercises);
-  ['ex-name', 'ex-duration', 'ex-calories', 'ex-distance', 'ex-notes'].forEach(id => document.getElementById(id).value = '');
-  renderExercise();
+  setSyncing(false);
+  ['ex-name','ex-duration','ex-calories','ex-distance','ex-notes'].forEach(id => document.getElementById(id).value='');
   toast('Workout logged!');
 }
 
-function deleteExercise(id) {
-  store.set('exercises', store.get('exercises', []).filter(e => e.id !== id));
-  renderExercise();
+async function deleteExercise(id) {
+  setSyncing(true);
+  await col('exercises').doc(id).delete();
+  setSyncing(false);
 }
 
 function renderExercise() {
-  const exercises = store.get('exercises', []);
+  const exercises = cache.exercises;
   const now = new Date();
-  const dayOfWeek = now.getDay() === 0 ? 6 : now.getDay() - 1;
-  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  const weekDates = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(now); d.setDate(now.getDate() - dayOfWeek + i);
-    return d.toISOString().slice(0, 10);
+  const dayOfWeek = now.getDay()===0?6:now.getDay()-1;
+  const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const weekDates = Array.from({length:7},(_,i)=>{
+    const d = new Date(now); d.setDate(now.getDate()-dayOfWeek+i);
+    return d.toISOString().slice(0,10);
   });
-  const workedDays = new Set(exercises.map(e => e.date));
-  document.getElementById('exercise-week-strip').innerHTML = weekDates.map((d, i) => `
-    <div class="day-cell ${workedDays.has(d) ? 'worked' : ''} ${d === today() ? 'today' : ''}">
-      <div class="day-label">${days[i]}</div>
-      <div class="day-dot"></div>
+  const workedDays = new Set(exercises.map(e=>e.date));
+  const ws = document.getElementById('exercise-week-strip');
+  if (ws) ws.innerHTML = weekDates.map((d,i)=>`
+    <div class="day-cell ${workedDays.has(d)?'worked':''} ${d===today()?'today':''}">
+      <div class="day-label">${days[i]}</div><div class="day-dot"></div>
     </div>`).join('');
 
-  const thisWeek = exercises.filter(e => weekDates.includes(e.date));
-  const totalMin = thisWeek.reduce((s, e) => s + e.duration, 0);
-  const totalCal = thisWeek.reduce((s, e) => s + e.calories, 0);
-  const totalDist = thisWeek.reduce((s, e) => s + e.distance, 0);
-  document.getElementById('exercise-stats').innerHTML = `
+  const thisWeek = exercises.filter(e=>weekDates.includes(e.date));
+  const totalMin = thisWeek.reduce((s,e)=>s+e.duration,0);
+  const totalCal = thisWeek.reduce((s,e)=>s+e.calories,0);
+  const totalDist = thisWeek.reduce((s,e)=>s+e.distance,0);
+  const es = document.getElementById('exercise-stats');
+  if (es) es.innerHTML = `
     <div class="salary-row"><span class="salary-label">Workouts</span><span class="salary-value">${thisWeek.length}</span></div>
     <div class="salary-row"><span class="salary-label">Total Time</span><span class="salary-value">${totalMin} min</span></div>
     <div class="salary-row"><span class="salary-label">Calories</span><span class="salary-value">${fmt(totalCal)} kcal</span></div>
-    ${totalDist > 0 ? `<div class="salary-row"><span class="salary-label">Distance</span><span class="salary-value">${totalDist.toFixed(1)} km</span></div>` : ''}
+    ${totalDist>0?`<div class="salary-row"><span class="salary-label">Distance</span><span class="salary-value">${totalDist.toFixed(1)} km</span></div>`:''}
   `;
 
-  const recent = exercises.slice().reverse().slice(0, 8);
-  document.getElementById('exercise-list').innerHTML = recent.length
-    ? recent.map(e => `
+  const recent = exercises.slice().sort((a,b)=>(b.ts?.seconds||0)-(a.ts?.seconds||0)).slice(0,8);
+  const el = document.getElementById('exercise-list');
+  if (el) el.innerHTML = recent.length
+    ? recent.map(e=>`
       <div class="exercise-log">
         <div class="exercise-icon">${e.icon}</div>
         <div class="exercise-info">
           <div class="exercise-name">${e.name}</div>
-          <div class="exercise-meta">${fmtDate(e.date)} · ${e.duration} min${e.calories ? ` · ${fmt(e.calories)} kcal` : ''}${e.distance ? ` · ${e.distance} km` : ''}</div>
-          ${e.notes ? `<div class="exercise-meta">${e.notes}</div>` : ''}
+          <div class="exercise-meta">${fmtDate(e.date)} · ${e.duration} min${e.calories?` · ${fmt(e.calories)} kcal`:''}${e.distance?` · ${e.distance} km`:''}</div>
+          ${e.notes?`<div class="exercise-meta">${e.notes}</div>`:''}
         </div>
         <span class="todo-del" onclick="deleteExercise('${e.id}')">×</span>
       </div>`).join('')
     : '<div class="empty">No workouts yet</div>';
 }
 
-function saveSalarySetup() {
-  store.set('salary-setup', {
-    gross: parseFloat(document.getElementById('salary-gross').value) || 0,
-    other: parseFloat(document.getElementById('salary-other').value) || 0,
-    savingsGoal: parseFloat(document.getElementById('salary-savings-goal').value) || 0,
-  });
-  renderSalary();
+// ── Salary ────────────────────────────────────────────────────────────────────
+async function saveSalarySetup() {
+  setSyncing(true);
+  await cfg().set({
+    salaryGross: parseFloat(document.getElementById('salary-gross').value)||0,
+    salaryOther: parseFloat(document.getElementById('salary-other').value)||0,
+    salarySavingsGoal: parseFloat(document.getElementById('salary-savings-goal').value)||0,
+  }, { merge: true });
+  setSyncing(false);
   toast('Salary setup saved!');
 }
 
-function updateSalaryCalc() { renderSalaryOverview(); }
-
-function addExpense() {
-  const amount = parseFloat(document.getElementById('exp-amount').value) || 0;
+async function addExpense() {
+  const amount = parseFloat(document.getElementById('exp-amount').value)||0;
   if (!amount) { toast('Please enter an amount'); return; }
-  const expenses = store.get('expenses', []);
-  expenses.push({
-    id: uid(), cat: document.getElementById('exp-cat').value,
-    amount, desc: document.getElementById('exp-desc').value.trim(), date: today(), ts: Date.now()
+  setSyncing(true);
+  await col('expenses').add({
+    cat: document.getElementById('exp-cat').value, amount,
+    desc: document.getElementById('exp-desc').value.trim(),
+    date: today(), ts: firebase.firestore.FieldValue.serverTimestamp()
   });
-  store.set('expenses', expenses);
-  document.getElementById('exp-amount').value = '';
-  document.getElementById('exp-desc').value = '';
-  renderSalary();
+  setSyncing(false);
+  document.getElementById('exp-amount').value='';
+  document.getElementById('exp-desc').value='';
   toast('Expense added!');
 }
 
-function deleteExpense(id) {
-  store.set('expenses', store.get('expenses', []).filter(e => e.id !== id));
-  renderSalary();
-}
-
-function renderSalaryOverview() {
-  const setup = store.get('salary-setup', {});
-  const thisMonth = new Date().toISOString().slice(0, 7);
-  const expenses = store.get('expenses', []).filter(e => e.date.startsWith(thisMonth));
-  const totalIncome = (setup.gross || 0) + (setup.other || 0);
-  const totalExp = expenses.reduce((s, e) => s + e.amount, 0);
-  const remaining = totalIncome - totalExp;
-  const savingsGoal = setup.savingsGoal || 0;
-
-  document.getElementById('salary-overview').innerHTML = `
-    <div class="salary-row"><span class="salary-label">Monthly Income</span><span class="salary-value salary-positive">฿${fmt(totalIncome)}</span></div>
-    <div class="salary-row"><span class="salary-label">Total Expenses</span><span class="salary-value salary-negative">฿${fmt(totalExp)}</span></div>
-    <div class="salary-row"><span class="salary-label">Remaining</span><span class="salary-value ${remaining >= 0 ? 'salary-positive' : 'salary-negative'}">฿${fmt(remaining)}</span></div>
-    ${savingsGoal > 0 ? `
-    <div style="margin-top:12px"><div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text2);margin-bottom:4px"><span>Savings Goal</span><span>฿${fmt(Math.min(remaining, savingsGoal))} / ฿${fmt(savingsGoal)}</span></div>
-    <div class="salary-bar-wrap"><div class="salary-bar" style="width:${Math.min(100, (remaining / savingsGoal) * 100)}%"></div></div></div>` : ''}
-    <div style="margin-top:12px"><div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text2);margin-bottom:4px"><span>Budget Used</span><span>${totalIncome > 0 ? Math.round((totalExp / totalIncome) * 100) : 0}%</span></div>
-    <div class="salary-bar-wrap"><div class="salary-bar" style="width:${totalIncome > 0 ? Math.min(100, (totalExp / totalIncome) * 100) : 0}%;background:${totalExp > totalIncome ? 'var(--red)' : 'linear-gradient(90deg,var(--accent),var(--accent3))'}"></div></div></div>
-  `;
+async function deleteExpense(id) {
+  setSyncing(true);
+  await col('expenses').doc(id).delete();
+  setSyncing(false);
 }
 
 function renderSalary() {
-  const setup = store.get('salary-setup', {});
-  if (setup.gross) document.getElementById('salary-gross').value = setup.gross;
-  if (setup.other) document.getElementById('salary-other').value = setup.other;
-  if (setup.savingsGoal) document.getElementById('salary-savings-goal').value = setup.savingsGoal;
-  renderSalaryOverview();
-  const thisMonth = new Date().toISOString().slice(0, 7);
-  const expenses = store.get('expenses', []).filter(e => e.date.startsWith(thisMonth)).slice().reverse().slice(0, 10);
-  const catEmoji = { Food: '🍜', Transport: '🚗', Housing: '🏠', Entertainment: '🎬', Education: '📚', Health: '💊', Shopping: '🛍️', Other: '📌' };
-  document.getElementById('expense-list').innerHTML = expenses.length
-    ? expenses.map(e => `
+  const cfg2 = cache.config;
+  if (cfg2.salaryGross) document.getElementById('salary-gross').value = cfg2.salaryGross;
+  if (cfg2.salaryOther) document.getElementById('salary-other').value = cfg2.salaryOther;
+  if (cfg2.salarySavingsGoal) document.getElementById('salary-savings-goal').value = cfg2.salarySavingsGoal;
+
+  const thisMonth = new Date().toISOString().slice(0,7);
+  const expenses = cache.expenses.filter(e=>e.date&&e.date.startsWith(thisMonth));
+  const totalIncome = (cfg2.salaryGross||0)+(cfg2.salaryOther||0);
+  const totalExp = expenses.reduce((s,e)=>s+e.amount,0);
+  const remaining = totalIncome-totalExp;
+  const savingsGoal = cfg2.salarySavingsGoal||0;
+
+  const so = document.getElementById('salary-overview');
+  if (so) so.innerHTML = `
+    <div class="salary-row"><span class="salary-label">Monthly Income</span><span class="salary-value salary-positive">฿${fmt(totalIncome)}</span></div>
+    <div class="salary-row"><span class="salary-label">Total Expenses</span><span class="salary-value salary-negative">฿${fmt(totalExp)}</span></div>
+    <div class="salary-row"><span class="salary-label">Remaining</span><span class="salary-value ${remaining>=0?'salary-positive':'salary-negative'}">฿${fmt(remaining)}</span></div>
+    ${savingsGoal>0?`<div style="margin-top:12px"><div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text2);margin-bottom:4px"><span>Savings Goal</span><span>฿${fmt(Math.min(remaining,savingsGoal))} / ฿${fmt(savingsGoal)}</span></div><div class="salary-bar-wrap"><div class="salary-bar" style="width:${Math.min(100,(remaining/savingsGoal)*100)}%"></div></div></div>`:''}
+    <div style="margin-top:12px"><div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text2);margin-bottom:4px"><span>Budget Used</span><span>${totalIncome>0?Math.round((totalExp/totalIncome)*100):0}%</span></div><div class="salary-bar-wrap"><div class="salary-bar" style="width:${totalIncome>0?Math.min(100,(totalExp/totalIncome)*100):0}%;background:${totalExp>totalIncome?'var(--red)':'linear-gradient(90deg,var(--accent),var(--accent3))'}"></div></div></div>
+  `;
+
+  const catEmoji = {Food:'🍜',Transport:'🚗',Housing:'🏠',Entertainment:'🎬',Education:'📚',Health:'💊',Shopping:'🛍️',Other:'📌'};
+  const recent = expenses.slice().sort((a,b)=>(b.ts?.seconds||0)-(a.ts?.seconds||0)).slice(0,10);
+  const el = document.getElementById('expense-list');
+  if (el) el.innerHTML = recent.length
+    ? recent.map(e=>`
       <div class="salary-row">
-        <span>${catEmoji[e.cat] || '📌'} <span style="color:var(--text2);font-size:12px">${e.cat}</span></span>
-        <span style="flex:1;margin:0 12px;font-size:13px">${e.desc || '—'}</span>
+        <span>${catEmoji[e.cat]||'📌'} <span style="color:var(--text2);font-size:12px">${e.cat}</span></span>
+        <span style="flex:1;margin:0 12px;font-size:13px">${e.desc||'—'}</span>
         <span class="salary-value salary-negative">-฿${fmt(e.amount)}</span>
         <span class="todo-del" onclick="deleteExpense('${e.id}')" style="margin-left:8px">×</span>
       </div>`).join('')
     : '<div class="empty">No expenses this month</div>';
 }
 
+// ── MBA ───────────────────────────────────────────────────────────────────────
 function openAddCourse() {
   editingCourseId = null;
-  ['course-name', 'course-credits', 'course-notes', 'course-semester', 'course-progress'].forEach(id => document.getElementById(id).value = '');
-  document.getElementById('course-grade').value = '';
+  ['course-name','course-credits','course-notes','course-semester','course-progress'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('course-grade').value='';
   document.getElementById('modal-course').classList.add('open');
 }
 
-function saveCourse() {
+async function saveCourse() {
   const name = document.getElementById('course-name').value.trim();
-  const credits = parseInt(document.getElementById('course-credits').value) || 3;
+  const credits = parseInt(document.getElementById('course-credits').value)||3;
   if (!name) { toast('Please enter course name'); return; }
-  const courses = store.get('mba-courses', []);
   const data = {
     name, credits, grade: document.getElementById('course-grade').value,
     semester: document.getElementById('course-semester').value.trim(),
-    progress: parseInt(document.getElementById('course-progress').value) || 0,
+    progress: parseInt(document.getElementById('course-progress').value)||0,
     notes: document.getElementById('course-notes').value.trim(),
   };
+  setSyncing(true);
   if (editingCourseId) {
-    const c = courses.find(c => c.id === editingCourseId);
-    if (c) Object.assign(c, data);
+    await col('mba-courses').doc(editingCourseId).update(data);
   } else {
-    courses.push({ id: uid(), ...data });
+    await col('mba-courses').add({ ...data, ts: firebase.firestore.FieldValue.serverTimestamp() });
+    // also listen to mba-courses
   }
-  store.set('mba-courses', courses);
+  setSyncing(false);
   closeModal('modal-course');
-  renderMBA();
   toast('Course saved!');
 }
 
 function editCourse(id) {
-  const c = store.get('mba-courses', []).find(c => c.id === id);
+  const c = cache['mba-courses']?.find(c=>c.id===id);
   if (!c) return;
   editingCourseId = id;
   document.getElementById('course-name').value = c.name;
   document.getElementById('course-credits').value = c.credits;
-  document.getElementById('course-grade').value = c.grade || '';
-  document.getElementById('course-semester').value = c.semester || '';
-  document.getElementById('course-progress').value = c.progress || '';
-  document.getElementById('course-notes').value = c.notes || '';
+  document.getElementById('course-grade').value = c.grade||'';
+  document.getElementById('course-semester').value = c.semester||'';
+  document.getElementById('course-progress').value = c.progress||'';
+  document.getElementById('course-notes').value = c.notes||'';
   document.getElementById('modal-course').classList.add('open');
 }
 
-function deleteCourse(id) {
+async function deleteCourse(id) {
   if (!confirm('Delete this course?')) return;
-  store.set('mba-courses', store.get('mba-courses', []).filter(c => c.id !== id));
-  renderMBA();
+  setSyncing(true);
+  await col('mba-courses').doc(id).delete();
+  setSyncing(false);
 }
 
 function renderMBA() {
-  const courses = store.get('mba-courses', []);
-  const graded = courses.filter(c => c.grade && GRADE_POINTS[c.grade] !== undefined);
+  const courses = cache['mba-courses']||[];
+  const graded = courses.filter(c=>c.grade&&GRADE_POINTS[c.grade]!==undefined);
   let gpa = '-';
   if (graded.length) {
-    const totalPts = graded.reduce((s, c) => s + GRADE_POINTS[c.grade] * c.credits, 0);
-    const totalCreds = graded.reduce((s, c) => s + c.credits, 0);
-    gpa = totalCreds > 0 ? (totalPts / totalCreds).toFixed(2) : '-';
+    const totalPts = graded.reduce((s,c)=>s+GRADE_POINTS[c.grade]*c.credits,0);
+    const totalCreds = graded.reduce((s,c)=>s+c.credits,0);
+    gpa = totalCreds>0?(totalPts/totalCreds).toFixed(2):'-';
   }
-  document.getElementById('mba-gpa').textContent = gpa;
+  const gpaEl = document.getElementById('mba-gpa');
+  if (gpaEl) gpaEl.textContent = gpa;
 
-  const totalCreds = courses.reduce((s, c) => s + (c.credits || 0), 0);
-  const completedCreds = graded.reduce((s, c) => s + c.credits, 0);
-  const totalRequired = store.get('mba-required-credits', 48);
-  document.getElementById('mba-progress-info').innerHTML = `
+  const totalCreds = courses.reduce((s,c)=>s+(c.credits||0),0);
+  const completedCreds = graded.reduce((s,c)=>s+c.credits,0);
+  const totalRequired = cache.config?.mbaRequiredCredits||48;
+  const pi = document.getElementById('mba-progress-info');
+  if (pi) pi.innerHTML = `
     <div class="salary-row"><span class="salary-label">Courses</span><span>${courses.length}</span></div>
     <div class="salary-row"><span class="salary-label">Completed Credits</span><span>${completedCreds}</span></div>
-    <div class="salary-row"><span class="salary-label">In Progress Credits</span><span>${totalCreds - completedCreds}</span></div>
+    <div class="salary-row"><span class="salary-label">In Progress</span><span>${totalCreds-completedCreds} credits</span></div>
     <div style="margin-top:12px">
-      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text2);margin-bottom:4px">
-        <span>Degree Progress</span><span>${completedCreds} / ${totalRequired} credits</span>
-      </div>
-      <div class="mba-progress-wrap"><div class="mba-progress" style="width:${Math.min(100, (completedCreds / totalRequired) * 100)}%"></div></div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text2);margin-bottom:4px"><span>Degree Progress</span><span>${completedCreds} / ${totalRequired} credits</span></div>
+      <div class="mba-progress-wrap"><div class="mba-progress" style="width:${Math.min(100,(completedCreds/totalRequired)*100)}%"></div></div>
     </div>
     <div style="margin-top:8px;font-size:12px;color:var(--text2)">
-      <input type="number" value="${totalRequired}" onchange="store.set('mba-required-credits', parseInt(this.value)||48); renderMBA()" style="width:70px;display:inline;padding:2px 6px" /> total credits required
+      <input type="number" value="${totalRequired}" onchange="saveRequiredCredits(parseInt(this.value)||48)" style="width:70px;display:inline;padding:2px 6px" /> total credits required
     </div>
   `;
 
   const bySemester = {};
-  courses.forEach(c => { const s = c.semester || 'Unsorted'; (bySemester[s] = bySemester[s] || []).push(c); });
-  document.getElementById('mba-courses').innerHTML = Object.entries(bySemester).map(([sem, cs]) => `
+  courses.forEach(c=>{ const s=c.semester||'Unsorted'; (bySemester[s]=bySemester[s]||[]).push(c); });
+  const mc = document.getElementById('mba-courses');
+  if (mc) mc.innerHTML = Object.entries(bySemester).map(([sem,cs])=>`
     <div style="margin-bottom:20px">
       <h3 style="margin-bottom:10px">📅 ${sem}</h3>
-      ${cs.map(c => `
+      ${cs.map(c=>`
         <div class="mba-course">
           <div class="mba-course-header">
-            <div>
-              <div class="mba-course-name">${c.name}</div>
-              <div class="mba-course-meta">${c.credits} credits${c.notes ? ' · ' + c.notes : ''}</div>
-            </div>
+            <div><div class="mba-course-name">${c.name}</div><div class="mba-course-meta">${c.credits} credits${c.notes?' · '+c.notes:''}</div></div>
             <div style="display:flex;align-items:center;gap:10px">
-              ${c.grade ? `<div class="mba-grade">${c.grade}</div>` : `<span style="font-size:12px;color:var(--text2)">${c.progress || 0}%</span>`}
+              ${c.grade?`<div class="mba-grade">${c.grade}</div>`:`<span style="font-size:12px;color:var(--text2)">${c.progress||0}%</span>`}
               <button class="btn btn-ghost btn-sm" onclick="editCourse('${c.id}')">Edit</button>
               <button class="btn btn-danger btn-sm" onclick="deleteCourse('${c.id}')">Del</button>
             </div>
           </div>
-          ${!c.grade ? `<div class="mba-progress-wrap"><div class="mba-progress" style="width:${c.progress || 0}%"></div></div>` : ''}
+          ${!c.grade?`<div class="mba-progress-wrap"><div class="mba-progress" style="width:${c.progress||0}%"></div></div>`:''}
         </div>`).join('')}
-    </div>`).join('') || '<div class="empty">No courses added yet. Click "+ Add Course" to start.</div>';
+    </div>`).join('')||'<div class="empty">No courses added yet. Click "+ Add Course" to start.</div>';
 }
 
-function init() {
-  const now = new Date();
-  document.getElementById('sidebar-date').textContent = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  renderDashboard();
-  renderTodos();
+async function saveRequiredCredits(val) {
+  setSyncing(true);
+  await cfg().set({ mbaRequiredCredits: val }, { merge: true });
+  setSyncing(false);
 }
 
-init();
+// ── Extra listener for MBA courses ────────────────────────────────────────────
+function initListeners() {
+  const collections = ['todos','moods','journals','exercises','expenses','mba-courses'];
+  collections.forEach(name => {
+    const unsub = col(name).onSnapshot(snap => {
+      cache[name] = snap.docs.map(d=>({id:d.id,...d.data()}));
+      refreshCurrentPage();
+    });
+    listeners.push(unsub);
+  });
+  const unsub = cfg().onSnapshot(doc => {
+    cache.config = doc.data()||{};
+    refreshCurrentPage();
+  });
+  listeners.push(unsub);
+}
 </script>
 </body>
 </html>
