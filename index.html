@@ -155,12 +155,60 @@
   .toast.show { opacity: 1; transform: translateY(0); }
 
   @media (max-width: 700px) {
-    .sidebar { width: 60px; }
-    .sidebar-header h1, .sidebar-header p, .nav-item span, .nav-section { display: none; }
-    .nav-item { justify-content: center; padding: 12px; }
-    .stat-grid { grid-template-columns: 1fr 1fr; }
+    /* Hide sidebar, show bottom nav instead */
+    .sidebar { display: none; }
+    .app { flex-direction: column; }
+    .main { flex: 1; overflow-y: auto; padding-bottom: 70px; }
+    .page { padding: 16px; max-width: 100%; }
+
+    /* Bottom navigation bar */
+    .bottom-nav { display: flex; position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface); border-top: 1px solid var(--border); z-index: 50; height: 64px; }
+    .bottom-nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; cursor: pointer; color: var(--text2); font-size: 10px; padding: 8px 4px; border-top: 2px solid transparent; }
+    .bottom-nav-item.active { color: var(--accent); border-top-color: var(--accent); }
+    .bottom-nav-item .icon { font-size: 20px; }
+
+    /* Layout fixes */
+    .stat-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
     .grid2, .grid3 { grid-template-columns: 1fr; }
-    .page { padding: 16px; }
+    .form-row { flex-direction: column; gap: 8px; }
+    .form-group { min-width: unset; }
+
+    /* Todo input stacks */
+    .todo-input-row { flex-wrap: wrap; }
+    .todo-input-row input { flex: 1 1 100%; }
+    .todo-input-row select { flex: 1; }
+    .todo-input-row .btn { flex: 1; justify-content: center; }
+
+    /* Page header on mobile */
+    .page-header { margin-bottom: 16px; }
+    .page-header[style*="flex"] { flex-direction: column; gap: 12px; }
+    h2 { font-size: 20px; }
+
+    /* Mood grid stays 5 cols but smaller */
+    .mood-grid { gap: 6px; }
+    .mood-btn { padding: 8px 4px; font-size: 10px; }
+    .mood-btn .emoji { font-size: 22px; }
+
+    /* Cards */
+    .card { padding: 14px; }
+
+    /* Week strip */
+    .week-strip { gap: 4px; }
+    .day-cell { padding: 6px 2px; }
+
+    /* Tabs */
+    .tabs { width: 100%; }
+    .tab { flex: 1; text-align: center; }
+
+    /* Modal full screen on mobile */
+    .modal { width: 100%; max-width: 100%; margin: 0; border-radius: 16px 16px 0 0; position: fixed; bottom: 0; left: 0; right: 0; max-height: 90vh; overflow-y: auto; }
+    .modal-overlay.open { align-items: flex-end; }
+
+    /* Stat cards */
+    .stat-card .value { font-size: 22px; }
+  }
+  @media (min-width: 701px) {
+    .bottom-nav { display: none; }
   }
 </style>
 </head>
@@ -524,6 +572,31 @@
 
 <div class="toast" id="toast"></div>
 
+<!-- Mobile Bottom Nav -->
+<div class="bottom-nav">
+  <div class="bottom-nav-item active" onclick="navigate('dashboard', this)">
+    <span class="icon">🏠</span><span>Home</span>
+  </div>
+  <div class="bottom-nav-item" onclick="navigate('todos', this)">
+    <span class="icon">✅</span><span>Tasks</span>
+  </div>
+  <div class="bottom-nav-item" onclick="navigate('mood', this)">
+    <span class="icon">😊</span><span>Mood</span>
+  </div>
+  <div class="bottom-nav-item" onclick="navigate('journal', this)">
+    <span class="icon">📓</span><span>Journal</span>
+  </div>
+  <div class="bottom-nav-item" onclick="navigate('exercise', this)">
+    <span class="icon">💪</span><span>Exercise</span>
+  </div>
+  <div class="bottom-nav-item" onclick="navigate('salary', this)">
+    <span class="icon">💰</span><span>Budget</span>
+  </div>
+  <div class="bottom-nav-item" onclick="navigate('mba', this)">
+    <span class="icon">🎓</span><span>MBA</span>
+  </div>
+</div>
+
 <script>
 const store = {
   get: (k, def) => { try { return JSON.parse(localStorage.getItem(k)) ?? def; } catch { return def; } },
@@ -541,9 +614,16 @@ let editingCourseId = null;
 
 function navigate(page) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.nav-item, .bottom-nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('page-' + page).classList.add('active');
   event.currentTarget.classList.add('active');
+  // sync the other nav (sidebar vs bottom)
+  const allNavItems = document.querySelectorAll('.nav-item, .bottom-nav-item');
+  allNavItems.forEach(n => {
+    if (n !== event.currentTarget && n.getAttribute('onclick') === `navigate('${page}', this)` || n.getAttribute('onclick') === `navigate('${page}')`) {
+      n.classList.add('active');
+    }
+  });
   renderPage(page);
 }
 
