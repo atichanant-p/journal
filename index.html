@@ -1,0 +1,1020 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Life Tracker</title>
+<style>
+  :root {
+    --bg: #0f0f13;
+    --surface: #1a1a24;
+    --surface2: #22222f;
+    --border: #2e2e40;
+    --accent: #7c6ff7;
+    --accent2: #f7a06f;
+    --accent3: #6ff7c3;
+    --accent4: #f76f9a;
+    --text: #e8e8f0;
+    --text2: #9090a8;
+    --green: #4caf7d;
+    --red: #f76f6f;
+    --yellow: #f7d06f;
+    --radius: 12px;
+    --shadow: 0 4px 24px rgba(0,0,0,0.4);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
+
+  .app { display: flex; height: 100vh; overflow: hidden; }
+  .sidebar { width: 220px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; }
+  .sidebar-header { padding: 24px 20px 16px; border-bottom: 1px solid var(--border); }
+  .sidebar-header h1 { font-size: 18px; font-weight: 700; color: var(--accent); }
+  .sidebar-header p { font-size: 12px; color: var(--text2); margin-top: 2px; }
+  .nav { flex: 1; padding: 12px 0; overflow-y: auto; }
+  .nav-section { padding: 8px 16px 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text2); }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 20px; cursor: pointer; color: var(--text2); font-size: 14px; transition: all 0.15s; border-left: 3px solid transparent; }
+  .nav-item:hover { background: var(--surface2); color: var(--text); }
+  .nav-item.active { background: var(--surface2); color: var(--accent); border-left-color: var(--accent); }
+  .nav-item .icon { font-size: 16px; width: 20px; text-align: center; }
+  .main { flex: 1; overflow-y: auto; background: var(--bg); }
+  .page { display: none; padding: 32px; max-width: 900px; }
+  .page.active { display: block; }
+
+  h2 { font-size: 24px; font-weight: 700; margin-bottom: 8px; }
+  h3 { font-size: 16px; font-weight: 600; margin-bottom: 12px; color: var(--text2); }
+  .page-header { margin-bottom: 28px; }
+  .date-subtitle { color: var(--text2); font-size: 14px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
+  .card-title { font-size: 14px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.15s; }
+  .btn-primary { background: var(--accent); color: white; }
+  .btn-primary:hover { opacity: 0.85; }
+  .btn-ghost { background: transparent; color: var(--text2); border: 1px solid var(--border); }
+  .btn-ghost:hover { background: var(--surface2); color: var(--text); }
+  .btn-danger { background: transparent; color: var(--red); border: 1px solid var(--red); }
+  .btn-danger:hover { background: var(--red); color: white; }
+  .btn-sm { padding: 4px 10px; font-size: 12px; }
+  input, textarea, select { background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 8px 12px; font-size: 14px; width: 100%; outline: none; font-family: inherit; }
+  input:focus, textarea:focus, select:focus { border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 80px; }
+  .form-row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .form-group { flex: 1; min-width: 140px; display: flex; flex-direction: column; gap: 6px; }
+  label { font-size: 12px; color: var(--text2); font-weight: 500; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  .empty { text-align: center; padding: 40px; color: var(--text2); font-size: 14px; }
+
+  .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+  .stat-card .value { font-size: 28px; font-weight: 700; }
+  .stat-card .label { font-size: 12px; color: var(--text2); margin-top: 2px; }
+  .stat-card.accent { border-color: var(--accent); }
+  .stat-card.green { border-color: var(--green); }
+  .stat-card.orange { border-color: var(--accent2); }
+  .stat-card.pink { border-color: var(--accent4); }
+
+  .todo-input-row { display: flex; gap: 8px; margin-bottom: 16px; }
+  .todo-item { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .todo-item:last-child { border-bottom: none; }
+  .todo-cb { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; flex-shrink: 0; }
+  .todo-text { flex: 1; font-size: 14px; }
+  .todo-text.done { text-decoration: line-through; color: var(--text2); }
+  .todo-del { cursor: pointer; color: var(--text2); font-size: 16px; padding: 2px 6px; border-radius: 4px; }
+  .todo-del:hover { color: var(--red); background: rgba(247,111,111,0.1); }
+  .todo-priority { padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+  .p-high { background: rgba(247,111,111,0.15); color: var(--red); }
+  .p-med { background: rgba(247,208,111,0.15); color: var(--yellow); }
+  .p-low { background: rgba(76,175,125,0.15); color: var(--green); }
+  .tabs { display: flex; gap: 4px; margin-bottom: 20px; background: var(--surface); border-radius: 8px; padding: 4px; width: fit-content; }
+  .tab { padding: 6px 14px; border-radius: 6px; font-size: 13px; cursor: pointer; color: var(--text2); }
+  .tab.active { background: var(--accent); color: white; font-weight: 600; }
+
+  .mood-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 16px; }
+  .mood-btn { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 12px 8px; border-radius: var(--radius); border: 2px solid var(--border); cursor: pointer; background: var(--surface2); transition: all 0.15s; font-size: 12px; color: var(--text2); }
+  .mood-btn .emoji { font-size: 28px; }
+  .mood-btn:hover, .mood-btn.selected { border-color: var(--accent); background: rgba(124,111,247,0.1); color: var(--text); }
+  .mood-history-item { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+  .mood-history-item:last-child { border-bottom: none; }
+  .mood-emoji-lg { font-size: 24px; }
+
+  .journal-entry { padding: 16px 0; border-bottom: 1px solid var(--border); cursor: pointer; }
+  .journal-entry:last-child { border-bottom: none; }
+  .journal-date { font-size: 12px; color: var(--text2); margin-bottom: 4px; }
+  .journal-title { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+  .journal-preview { font-size: 13px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .journal-editor { display: none; }
+  .journal-editor.open { display: block; }
+
+  .exercise-log { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+  .exercise-log:last-child { border-bottom: none; }
+  .exercise-icon { font-size: 20px; width: 32px; text-align: center; }
+  .exercise-info { flex: 1; }
+  .exercise-name { font-weight: 600; }
+  .exercise-meta { font-size: 12px; color: var(--text2); }
+  .week-strip { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 20px; }
+  .day-cell { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 4px; border-radius: 8px; background: var(--surface2); }
+  .day-cell .day-label { font-size: 10px; color: var(--text2); }
+  .day-cell .day-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--border); }
+  .day-cell.worked .day-dot { background: var(--accent3); }
+  .day-cell.today .day-label { color: var(--accent); font-weight: 700; }
+
+  .salary-bar-wrap { background: var(--surface2); border-radius: 8px; overflow: hidden; height: 10px; margin: 8px 0; }
+  .salary-bar { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent3)); border-radius: 8px; transition: width 0.5s; }
+  .salary-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+  .salary-row:last-child { border-bottom: none; }
+  .salary-label { color: var(--text2); }
+  .salary-value { font-weight: 600; }
+  .salary-positive { color: var(--green); }
+  .salary-negative { color: var(--red); }
+
+  .mba-course { background: var(--surface2); border-radius: 10px; padding: 14px; margin-bottom: 10px; }
+  .mba-course-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+  .mba-course-name { font-weight: 600; font-size: 15px; }
+  .mba-grade { font-size: 20px; font-weight: 700; color: var(--accent); }
+  .mba-progress-wrap { background: var(--border); border-radius: 6px; overflow: hidden; height: 6px; }
+  .mba-progress { height: 100%; background: var(--accent); border-radius: 6px; transition: width 0.4s; }
+  .mba-course-meta { font-size: 12px; color: var(--text2); margin-top: 6px; }
+  .gpa-display { text-align: center; padding: 20px; }
+  .gpa-number { font-size: 64px; font-weight: 800; color: var(--accent); line-height: 1; }
+  .gpa-label { color: var(--text2); margin-top: 4px; }
+
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 100; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; width: 500px; max-width: 90vw; }
+  .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  .modal-header h3 { font-size: 18px; margin: 0; color: var(--text); }
+  .modal-close { cursor: pointer; color: var(--text2); font-size: 20px; background: none; border: none; color: var(--text2); }
+  .modal-close:hover { color: var(--text); }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+
+  .toast { position: fixed; bottom: 24px; right: 24px; background: var(--surface); border: 1px solid var(--accent); border-radius: 10px; padding: 12px 18px; font-size: 14px; color: var(--text); z-index: 999; opacity: 0; transform: translateY(10px); transition: all 0.3s; pointer-events: none; }
+  .toast.show { opacity: 1; transform: translateY(0); }
+
+  @media (max-width: 700px) {
+    .sidebar { width: 60px; }
+    .sidebar-header h1, .sidebar-header p, .nav-item span, .nav-section { display: none; }
+    .nav-item { justify-content: center; padding: 12px; }
+    .stat-grid { grid-template-columns: 1fr 1fr; }
+    .grid2, .grid3 { grid-template-columns: 1fr; }
+    .page { padding: 16px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <h1>✦ My Life</h1>
+      <p id="sidebar-date"></p>
+    </div>
+    <nav class="nav">
+      <div class="nav-section">Overview</div>
+      <div class="nav-item active" onclick="navigate('dashboard')">
+        <span class="icon">🏠</span><span>Dashboard</span>
+      </div>
+      <div class="nav-section">Daily</div>
+      <div class="nav-item" onclick="navigate('todos')">
+        <span class="icon">✅</span><span>To-Do List</span>
+      </div>
+      <div class="nav-item" onclick="navigate('mood')">
+        <span class="icon">😊</span><span>Mood Tracker</span>
+      </div>
+      <div class="nav-item" onclick="navigate('journal')">
+        <span class="icon">📓</span><span>Journal</span>
+      </div>
+      <div class="nav-section">Health</div>
+      <div class="nav-item" onclick="navigate('exercise')">
+        <span class="icon">💪</span><span>Exercise</span>
+      </div>
+      <div class="nav-section">Finance</div>
+      <div class="nav-item" onclick="navigate('salary')">
+        <span class="icon">💰</span><span>Salary & Budget</span>
+      </div>
+      <div class="nav-section">Education</div>
+      <div class="nav-item" onclick="navigate('mba')">
+        <span class="icon">🎓</span><span>MBA Tracker</span>
+      </div>
+    </nav>
+  </div>
+
+  <div class="main">
+
+    <div class="page active" id="page-dashboard">
+      <div class="page-header">
+        <h2>Good <span id="greeting-time"></span>! 👋</h2>
+        <div class="date-subtitle" id="today-full"></div>
+      </div>
+      <div class="stat-grid" id="dash-stats"></div>
+      <div class="grid2">
+        <div>
+          <div class="card">
+            <div class="card-title">Today's Tasks</div>
+            <div id="dash-todos"></div>
+          </div>
+          <div class="card">
+            <div class="card-title">Recent Mood</div>
+            <div id="dash-mood"></div>
+          </div>
+        </div>
+        <div>
+          <div class="card">
+            <div class="card-title">Latest Journal</div>
+            <div id="dash-journal"></div>
+          </div>
+          <div class="card">
+            <div class="card-title">This Week's Exercise</div>
+            <div id="dash-exercise"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="page" id="page-todos">
+      <div class="page-header">
+        <h2>To-Do List</h2>
+        <div class="date-subtitle">Stay on top of your goals</div>
+      </div>
+      <div class="tabs">
+        <div class="tab active" onclick="switchTodoTab('today', this)">Today</div>
+        <div class="tab" onclick="switchTodoTab('week', this)">This Week</div>
+        <div class="tab" onclick="switchTodoTab('month', this)">This Month</div>
+      </div>
+      <div class="card">
+        <div class="todo-input-row">
+          <input id="todo-input" placeholder="Add a new task..." onkeypress="if(event.key==='Enter') addTodo()" style="flex:1" />
+          <select id="todo-priority" style="width:100px">
+            <option value="med">Medium</option>
+            <option value="high">High</option>
+            <option value="low">Low</option>
+          </select>
+          <button class="btn btn-primary" onclick="addTodo()">+ Add</button>
+        </div>
+        <div id="todo-list"></div>
+      </div>
+    </div>
+
+    <div class="page" id="page-mood">
+      <div class="page-header">
+        <h2>Mood Tracker</h2>
+        <div class="date-subtitle">How are you feeling?</div>
+      </div>
+      <div class="card">
+        <div class="card-title">How do you feel right now?</div>
+        <div class="mood-grid">
+          <div class="mood-btn" onclick="selectMood(1, this)"><div class="emoji">😭</div><div>Terrible</div></div>
+          <div class="mood-btn" onclick="selectMood(2, this)"><div class="emoji">😔</div><div>Bad</div></div>
+          <div class="mood-btn" onclick="selectMood(3, this)"><div class="emoji">😐</div><div>Okay</div></div>
+          <div class="mood-btn" onclick="selectMood(4, this)"><div class="emoji">😊</div><div>Good</div></div>
+          <div class="mood-btn" onclick="selectMood(5, this)"><div class="emoji">🤩</div><div>Amazing</div></div>
+        </div>
+        <div class="form-group" style="margin-bottom:12px">
+          <label>Add a note (optional)</label>
+          <input id="mood-note" placeholder="What's on your mind?" />
+        </div>
+        <button class="btn btn-primary" onclick="logMood()">Log Mood</button>
+      </div>
+      <div class="card">
+        <div class="card-title">Mood History</div>
+        <div id="mood-history"></div>
+      </div>
+    </div>
+
+    <div class="page" id="page-journal">
+      <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <h2>Journal</h2>
+          <div class="date-subtitle">Your private thoughts & reflections</div>
+        </div>
+        <button class="btn btn-primary" onclick="newJournalEntry()">+ New Entry</button>
+      </div>
+      <div id="journal-editor" class="journal-editor">
+        <div class="card">
+          <div class="form-group" style="margin-bottom:12px">
+            <label>Title</label>
+            <input id="journal-title-input" placeholder="Entry title..." />
+          </div>
+          <div class="form-group" style="margin-bottom:12px">
+            <label>Content</label>
+            <textarea id="journal-content-input" style="min-height:200px" placeholder="Write your thoughts..."></textarea>
+          </div>
+          <div class="form-group" style="margin-bottom:16px">
+            <label>Tags (comma separated)</label>
+            <input id="journal-tags-input" placeholder="work, personal, goals..." />
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-primary" onclick="saveJournalEntry()">Save Entry</button>
+            <button class="btn btn-ghost" onclick="cancelJournal()">Cancel</button>
+            <button class="btn btn-danger btn-sm" id="journal-delete-btn" onclick="deleteJournalEntry()" style="display:none;margin-left:auto">Delete</button>
+          </div>
+        </div>
+      </div>
+      <div class="card" id="journal-list-card">
+        <div id="journal-list"></div>
+      </div>
+    </div>
+
+    <div class="page" id="page-exercise">
+      <div class="page-header">
+        <h2>Exercise Tracker</h2>
+        <div class="date-subtitle">Build healthy habits</div>
+      </div>
+      <div class="week-strip" id="exercise-week-strip"></div>
+      <div class="grid2">
+        <div class="card">
+          <div class="card-title">Log Workout</div>
+          <div class="form-group" style="margin-bottom:10px">
+            <label>Exercise Type</label>
+            <select id="ex-type">
+              <option value="🏃">Running</option>
+              <option value="🚴">Cycling</option>
+              <option value="🏊">Swimming</option>
+              <option value="🏋️">Weight Training</option>
+              <option value="🧘">Yoga</option>
+              <option value="🥊">Boxing/HIIT</option>
+              <option value="🚶">Walking</option>
+              <option value="⚽">Sports</option>
+              <option value="🏔️">Hiking</option>
+              <option value="💪">Other</option>
+            </select>
+          </div>
+          <div class="form-row" style="margin-bottom:10px">
+            <div class="form-group">
+              <label>Name</label>
+              <input id="ex-name" placeholder="Morning run..." />
+            </div>
+            <div class="form-group">
+              <label>Duration (min)</label>
+              <input id="ex-duration" type="number" placeholder="30" min="1" />
+            </div>
+          </div>
+          <div class="form-row" style="margin-bottom:14px">
+            <div class="form-group">
+              <label>Calories burned</label>
+              <input id="ex-calories" type="number" placeholder="300" />
+            </div>
+            <div class="form-group">
+              <label>Distance (km, optional)</label>
+              <input id="ex-distance" type="number" placeholder="5" step="0.1" />
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom:14px">
+            <label>Notes</label>
+            <input id="ex-notes" placeholder="Felt great today..." />
+          </div>
+          <button class="btn btn-primary" onclick="logExercise()">Log Workout</button>
+        </div>
+        <div>
+          <div class="card">
+            <div class="card-title">Stats This Week</div>
+            <div id="exercise-stats"></div>
+          </div>
+          <div class="card">
+            <div class="card-title">Recent Workouts</div>
+            <div id="exercise-list"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="page" id="page-salary">
+      <div class="page-header">
+        <h2>Salary & Budget</h2>
+        <div class="date-subtitle">Track your financial health</div>
+      </div>
+      <div class="grid2">
+        <div>
+          <div class="card">
+            <div class="card-title">Monthly Income Setup</div>
+            <div class="form-group" style="margin-bottom:10px">
+              <label>Monthly Salary (THB)</label>
+              <input id="salary-gross" type="number" placeholder="50000" oninput="updateSalaryCalc()" />
+            </div>
+            <div class="form-group" style="margin-bottom:10px">
+              <label>Other Income (THB)</label>
+              <input id="salary-other" type="number" placeholder="0" oninput="updateSalaryCalc()" />
+            </div>
+            <div class="form-group" style="margin-bottom:14px">
+              <label>Monthly Savings Goal (THB)</label>
+              <input id="salary-savings-goal" type="number" placeholder="10000" oninput="updateSalaryCalc()" />
+            </div>
+            <button class="btn btn-primary" onclick="saveSalarySetup()">Save Setup</button>
+          </div>
+          <div class="card">
+            <div class="card-title">Add Expense</div>
+            <div class="form-row" style="margin-bottom:10px">
+              <div class="form-group">
+                <label>Category</label>
+                <select id="exp-cat">
+                  <option>Food</option>
+                  <option>Transport</option>
+                  <option>Housing</option>
+                  <option>Entertainment</option>
+                  <option>Education</option>
+                  <option>Health</option>
+                  <option>Shopping</option>
+                  <option>Other</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Amount (THB)</label>
+                <input id="exp-amount" type="number" placeholder="500" />
+              </div>
+            </div>
+            <div class="form-group" style="margin-bottom:10px">
+              <label>Description</label>
+              <input id="exp-desc" placeholder="Lunch with colleagues..." />
+            </div>
+            <button class="btn btn-primary" onclick="addExpense()">Add Expense</button>
+          </div>
+        </div>
+        <div>
+          <div class="card">
+            <div class="card-title">This Month Overview</div>
+            <div id="salary-overview"></div>
+          </div>
+          <div class="card">
+            <div class="card-title">Recent Expenses</div>
+            <div id="expense-list"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="page" id="page-mba">
+      <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <h2>MBA Tracker</h2>
+          <div class="date-subtitle">Your academic journey</div>
+        </div>
+        <button class="btn btn-primary" onclick="openAddCourse()">+ Add Course</button>
+      </div>
+      <div class="grid2" style="margin-bottom:16px">
+        <div class="card" style="text-align:center">
+          <div class="gpa-display">
+            <div class="gpa-number" id="mba-gpa">-</div>
+            <div class="gpa-label">Cumulative GPA</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Progress</div>
+          <div id="mba-progress-info"></div>
+        </div>
+      </div>
+      <div id="mba-courses"></div>
+    </div>
+
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-course">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Add Course</h3>
+      <button class="modal-close" onclick="closeModal('modal-course')">✕</button>
+    </div>
+    <div class="form-group" style="margin-bottom:10px">
+      <label>Course Name</label>
+      <input id="course-name" placeholder="Financial Management" />
+    </div>
+    <div class="form-row" style="margin-bottom:10px">
+      <div class="form-group">
+        <label>Credits</label>
+        <input id="course-credits" type="number" placeholder="3" min="1" max="6" />
+      </div>
+      <div class="form-group">
+        <label>Grade</label>
+        <select id="course-grade">
+          <option value="">In Progress</option>
+          <option value="A">A (4.0)</option>
+          <option value="A-">A- (3.7)</option>
+          <option value="B+">B+ (3.3)</option>
+          <option value="B">B (3.0)</option>
+          <option value="B-">B- (2.7)</option>
+          <option value="C+">C+ (2.3)</option>
+          <option value="C">C (2.0)</option>
+          <option value="D">D (1.0)</option>
+          <option value="F">F (0.0)</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row" style="margin-bottom:10px">
+      <div class="form-group">
+        <label>Semester</label>
+        <input id="course-semester" placeholder="2024/1" />
+      </div>
+      <div class="form-group">
+        <label>Progress % (if in progress)</label>
+        <input id="course-progress" type="number" placeholder="60" min="0" max="100" />
+      </div>
+    </div>
+    <div class="form-group" style="margin-bottom:10px">
+      <label>Notes</label>
+      <input id="course-notes" placeholder="Group project, final exam..." />
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-course')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveCourse()">Save Course</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const store = {
+  get: (k, def) => { try { return JSON.parse(localStorage.getItem(k)) ?? def; } catch { return def; } },
+  set: (k, v) => localStorage.setItem(k, JSON.stringify(v)),
+};
+
+const MOODS = ['', '😭', '😔', '😐', '😊', '🤩'];
+const MOOD_LABELS = ['', 'Terrible', 'Bad', 'Okay', 'Good', 'Amazing'];
+const GRADE_POINTS = { 'A': 4.0, 'A-': 3.7, 'B+': 3.3, 'B': 3.0, 'B-': 2.7, 'C+': 2.3, 'C': 2.0, 'D': 1.0, 'F': 0.0 };
+
+let currentTodoTab = 'today';
+let selectedMood = 0;
+let editingJournalId = null;
+let editingCourseId = null;
+
+function navigate(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  event.currentTarget.classList.add('active');
+  renderPage(page);
+}
+
+function renderPage(page) {
+  if (page === 'dashboard') renderDashboard();
+  else if (page === 'todos') renderTodos();
+  else if (page === 'mood') renderMoodHistory();
+  else if (page === 'journal') renderJournal();
+  else if (page === 'exercise') renderExercise();
+  else if (page === 'salary') renderSalary();
+  else if (page === 'mba') renderMBA();
+}
+
+function today() { return new Date().toISOString().slice(0, 10); }
+function fmtDate(d) { return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }); }
+function fmtDateTime(ts) { return new Date(ts).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); }
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 5); }
+function fmt(n) { return Number(n || 0).toLocaleString('th-TH'); }
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+function renderDashboard() {
+  const now = new Date();
+  const h = now.getHours();
+  const greeting = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
+  document.getElementById('greeting-time').textContent = greeting;
+  document.getElementById('today-full').textContent = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+  const todos = store.get('todos', []).filter(t => t.timeframe === 'today');
+  const done = todos.filter(t => t.done).length;
+  const moods = store.get('moods', []);
+  const lastMood = moods[moods.length - 1];
+  const exercises = store.get('exercises', []);
+  const now2 = new Date();
+  const mon = new Date(now2); mon.setDate(now2.getDate() - (now2.getDay() === 0 ? 6 : now2.getDay() - 1));
+  const thisWeekEx = exercises.filter(e => new Date(e.date) >= mon);
+
+  document.getElementById('dash-stats').innerHTML = `
+    <div class="stat-card accent"><div class="value">${done}/${todos.length}</div><div class="label">Tasks Today</div></div>
+    <div class="stat-card green"><div class="value">${thisWeekEx.length}</div><div class="label">Workouts This Week</div></div>
+    <div class="stat-card orange"><div class="value">${lastMood ? MOODS[lastMood.score] : '—'}</div><div class="label">Last Mood</div></div>
+    <div class="stat-card pink"><div class="value">${store.get('journals', []).length}</div><div class="label">Journal Entries</div></div>
+  `;
+
+  const todayTodos = todos.slice(0, 5);
+  document.getElementById('dash-todos').innerHTML = todayTodos.length
+    ? todayTodos.map(t => `<div class="todo-item"><input type="checkbox" class="todo-cb" ${t.done ? 'checked' : ''} disabled /><span class="todo-text ${t.done ? 'done' : ''}">${t.text}</span></div>`).join('')
+    : '<div class="empty">No tasks for today</div>';
+
+  const recentMoods = moods.slice(-5).reverse();
+  document.getElementById('dash-mood').innerHTML = recentMoods.length
+    ? recentMoods.map(m => `<div class="mood-history-item"><span class="mood-emoji-lg">${MOODS[m.score]}</span><span>${MOOD_LABELS[m.score]}</span><span style="margin-left:auto;font-size:12px;color:var(--text2)">${fmtDateTime(m.ts)}</span></div>`).join('')
+    : '<div class="empty">No mood logged yet</div>';
+
+  const journals = store.get('journals', []).slice(-1)[0];
+  document.getElementById('dash-journal').innerHTML = journals
+    ? `<div class="journal-date">${fmtDateTime(journals.ts)}</div><div class="journal-title">${journals.title || 'Untitled'}</div><div class="journal-preview">${journals.content}</div>`
+    : '<div class="empty">No journal entries yet</div>';
+
+  const totalCal = thisWeekEx.reduce((s, e) => s + (e.calories || 0), 0);
+  const totalMin = thisWeekEx.reduce((s, e) => s + (e.duration || 0), 0);
+  document.getElementById('dash-exercise').innerHTML = thisWeekEx.length
+    ? `<div class="salary-row"><span class="salary-label">Workouts</span><span>${thisWeekEx.length}</span></div>
+       <div class="salary-row"><span class="salary-label">Total Time</span><span>${totalMin} min</span></div>
+       <div class="salary-row"><span class="salary-label">Calories Burned</span><span>${fmt(totalCal)} kcal</span></div>`
+    : '<div class="empty">No workouts logged this week</div>';
+}
+
+function addTodo() {
+  const input = document.getElementById('todo-input');
+  const text = input.value.trim();
+  if (!text) return;
+  const todos = store.get('todos', []);
+  todos.push({ id: uid(), text, done: false, priority: document.getElementById('todo-priority').value, timeframe: currentTodoTab, created: Date.now() });
+  store.set('todos', todos);
+  input.value = '';
+  renderTodos();
+  toast('Task added!');
+}
+
+function toggleTodo(id) {
+  const todos = store.get('todos', []);
+  const t = todos.find(t => t.id === id);
+  if (t) t.done = !t.done;
+  store.set('todos', todos);
+  renderTodos();
+}
+
+function deleteTodo(id) {
+  store.set('todos', store.get('todos', []).filter(t => t.id !== id));
+  renderTodos();
+}
+
+function switchTodoTab(tab, el) {
+  currentTodoTab = tab;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  renderTodos();
+}
+
+function renderTodos() {
+  const todos = store.get('todos', []).filter(t => t.timeframe === currentTodoTab);
+  const pMap = { high: 'p-high', med: 'p-med', low: 'p-low' };
+  const pLabel = { high: 'High', med: 'Med', low: 'Low' };
+  document.getElementById('todo-list').innerHTML = todos.length
+    ? todos.map(t => `
+      <div class="todo-item">
+        <input type="checkbox" class="todo-cb" ${t.done ? 'checked' : ''} onchange="toggleTodo('${t.id}')" />
+        <span class="todo-text ${t.done ? 'done' : ''}">${t.text}</span>
+        <span class="todo-priority ${pMap[t.priority]}">${pLabel[t.priority]}</span>
+        <span class="todo-del" onclick="deleteTodo('${t.id}')">×</span>
+      </div>`).join('')
+    : '<div class="empty">No tasks yet. Add one above!</div>';
+}
+
+function selectMood(score, el) {
+  selectedMood = score;
+  document.querySelectorAll('.mood-btn').forEach(b => b.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+function logMood() {
+  if (!selectedMood) { toast('Please select a mood first'); return; }
+  const moods = store.get('moods', []);
+  moods.push({ id: uid(), score: selectedMood, note: document.getElementById('mood-note').value.trim(), ts: Date.now() });
+  store.set('moods', moods);
+  selectedMood = 0;
+  document.querySelectorAll('.mood-btn').forEach(b => b.classList.remove('selected'));
+  document.getElementById('mood-note').value = '';
+  renderMoodHistory();
+  toast('Mood logged!');
+}
+
+function deleteMood(id) {
+  store.set('moods', store.get('moods', []).filter(m => m.id !== id));
+  renderMoodHistory();
+}
+
+function renderMoodHistory() {
+  const moods = store.get('moods', []).slice().reverse();
+  document.getElementById('mood-history').innerHTML = moods.length
+    ? moods.map(m => `
+      <div class="mood-history-item">
+        <span class="mood-emoji-lg">${MOODS[m.score]}</span>
+        <div style="flex:1"><div style="font-weight:600">${MOOD_LABELS[m.score]}</div>${m.note ? `<div style="font-size:12px;color:var(--text2)">${m.note}</div>` : ''}</div>
+        <span style="font-size:12px;color:var(--text2)">${fmtDateTime(m.ts)}</span>
+        <span class="todo-del" onclick="deleteMood('${m.id}')">×</span>
+      </div>`).join('')
+    : '<div class="empty">No moods logged yet</div>';
+}
+
+function newJournalEntry() {
+  editingJournalId = null;
+  document.getElementById('journal-title-input').value = '';
+  document.getElementById('journal-content-input').value = '';
+  document.getElementById('journal-tags-input').value = '';
+  document.getElementById('journal-editor').classList.add('open');
+  document.getElementById('journal-list-card').style.display = 'none';
+  document.getElementById('journal-delete-btn').style.display = 'none';
+}
+
+function editJournalEntry(id) {
+  const j = store.get('journals', []).find(j => j.id === id);
+  if (!j) return;
+  editingJournalId = id;
+  document.getElementById('journal-title-input').value = j.title || '';
+  document.getElementById('journal-content-input').value = j.content || '';
+  document.getElementById('journal-tags-input').value = (j.tags || []).join(', ');
+  document.getElementById('journal-editor').classList.add('open');
+  document.getElementById('journal-list-card').style.display = 'none';
+  document.getElementById('journal-delete-btn').style.display = 'inline-flex';
+}
+
+function saveJournalEntry() {
+  const title = document.getElementById('journal-title-input').value.trim();
+  const content = document.getElementById('journal-content-input').value.trim();
+  if (!content) { toast('Please write something first'); return; }
+  const tags = document.getElementById('journal-tags-input').value.split(',').map(t => t.trim()).filter(Boolean);
+  const journals = store.get('journals', []);
+  if (editingJournalId) {
+    const j = journals.find(j => j.id === editingJournalId);
+    if (j) { j.title = title; j.content = content; j.tags = tags; j.updated = Date.now(); }
+  } else {
+    journals.push({ id: uid(), title, content, tags, ts: Date.now() });
+  }
+  store.set('journals', journals);
+  cancelJournal();
+  renderJournal();
+  toast('Journal saved!');
+}
+
+function deleteJournalEntry() {
+  if (!editingJournalId) return;
+  if (!confirm('Delete this entry?')) return;
+  store.set('journals', store.get('journals', []).filter(j => j.id !== editingJournalId));
+  cancelJournal();
+  renderJournal();
+  toast('Entry deleted');
+}
+
+function cancelJournal() {
+  document.getElementById('journal-editor').classList.remove('open');
+  document.getElementById('journal-list-card').style.display = 'block';
+  editingJournalId = null;
+}
+
+function renderJournal() {
+  const journals = store.get('journals', []).slice().reverse();
+  document.getElementById('journal-list').innerHTML = journals.length
+    ? journals.map(j => `
+      <div class="journal-entry" onclick="editJournalEntry('${j.id}')">
+        <div class="journal-date">${fmtDateTime(j.ts)}${j.tags && j.tags.length ? ' · ' + j.tags.map(t => `<span style="color:var(--accent)">#${t}</span>`).join(' ') : ''}</div>
+        <div class="journal-title">${j.title || 'Untitled'}</div>
+        <div class="journal-preview">${j.content}</div>
+      </div>`).join('')
+    : '<div class="empty">No journal entries yet. Click "+ New Entry" to start writing.</div>';
+}
+
+function logExercise() {
+  const name = document.getElementById('ex-name').value.trim() || document.getElementById('ex-type').options[document.getElementById('ex-type').selectedIndex].text;
+  const duration = parseInt(document.getElementById('ex-duration').value) || 0;
+  if (!duration) { toast('Please enter duration'); return; }
+  const exercises = store.get('exercises', []);
+  exercises.push({
+    id: uid(), icon: document.getElementById('ex-type').value, name,
+    duration, calories: parseInt(document.getElementById('ex-calories').value) || 0,
+    distance: parseFloat(document.getElementById('ex-distance').value) || 0,
+    notes: document.getElementById('ex-notes').value.trim(), date: today(), ts: Date.now()
+  });
+  store.set('exercises', exercises);
+  ['ex-name', 'ex-duration', 'ex-calories', 'ex-distance', 'ex-notes'].forEach(id => document.getElementById(id).value = '');
+  renderExercise();
+  toast('Workout logged!');
+}
+
+function deleteExercise(id) {
+  store.set('exercises', store.get('exercises', []).filter(e => e.id !== id));
+  renderExercise();
+}
+
+function renderExercise() {
+  const exercises = store.get('exercises', []);
+  const now = new Date();
+  const dayOfWeek = now.getDay() === 0 ? 6 : now.getDay() - 1;
+  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const weekDates = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(now); d.setDate(now.getDate() - dayOfWeek + i);
+    return d.toISOString().slice(0, 10);
+  });
+  const workedDays = new Set(exercises.map(e => e.date));
+  document.getElementById('exercise-week-strip').innerHTML = weekDates.map((d, i) => `
+    <div class="day-cell ${workedDays.has(d) ? 'worked' : ''} ${d === today() ? 'today' : ''}">
+      <div class="day-label">${days[i]}</div>
+      <div class="day-dot"></div>
+    </div>`).join('');
+
+  const thisWeek = exercises.filter(e => weekDates.includes(e.date));
+  const totalMin = thisWeek.reduce((s, e) => s + e.duration, 0);
+  const totalCal = thisWeek.reduce((s, e) => s + e.calories, 0);
+  const totalDist = thisWeek.reduce((s, e) => s + e.distance, 0);
+  document.getElementById('exercise-stats').innerHTML = `
+    <div class="salary-row"><span class="salary-label">Workouts</span><span class="salary-value">${thisWeek.length}</span></div>
+    <div class="salary-row"><span class="salary-label">Total Time</span><span class="salary-value">${totalMin} min</span></div>
+    <div class="salary-row"><span class="salary-label">Calories</span><span class="salary-value">${fmt(totalCal)} kcal</span></div>
+    ${totalDist > 0 ? `<div class="salary-row"><span class="salary-label">Distance</span><span class="salary-value">${totalDist.toFixed(1)} km</span></div>` : ''}
+  `;
+
+  const recent = exercises.slice().reverse().slice(0, 8);
+  document.getElementById('exercise-list').innerHTML = recent.length
+    ? recent.map(e => `
+      <div class="exercise-log">
+        <div class="exercise-icon">${e.icon}</div>
+        <div class="exercise-info">
+          <div class="exercise-name">${e.name}</div>
+          <div class="exercise-meta">${fmtDate(e.date)} · ${e.duration} min${e.calories ? ` · ${fmt(e.calories)} kcal` : ''}${e.distance ? ` · ${e.distance} km` : ''}</div>
+          ${e.notes ? `<div class="exercise-meta">${e.notes}</div>` : ''}
+        </div>
+        <span class="todo-del" onclick="deleteExercise('${e.id}')">×</span>
+      </div>`).join('')
+    : '<div class="empty">No workouts yet</div>';
+}
+
+function saveSalarySetup() {
+  store.set('salary-setup', {
+    gross: parseFloat(document.getElementById('salary-gross').value) || 0,
+    other: parseFloat(document.getElementById('salary-other').value) || 0,
+    savingsGoal: parseFloat(document.getElementById('salary-savings-goal').value) || 0,
+  });
+  renderSalary();
+  toast('Salary setup saved!');
+}
+
+function updateSalaryCalc() { renderSalaryOverview(); }
+
+function addExpense() {
+  const amount = parseFloat(document.getElementById('exp-amount').value) || 0;
+  if (!amount) { toast('Please enter an amount'); return; }
+  const expenses = store.get('expenses', []);
+  expenses.push({
+    id: uid(), cat: document.getElementById('exp-cat').value,
+    amount, desc: document.getElementById('exp-desc').value.trim(), date: today(), ts: Date.now()
+  });
+  store.set('expenses', expenses);
+  document.getElementById('exp-amount').value = '';
+  document.getElementById('exp-desc').value = '';
+  renderSalary();
+  toast('Expense added!');
+}
+
+function deleteExpense(id) {
+  store.set('expenses', store.get('expenses', []).filter(e => e.id !== id));
+  renderSalary();
+}
+
+function renderSalaryOverview() {
+  const setup = store.get('salary-setup', {});
+  const thisMonth = new Date().toISOString().slice(0, 7);
+  const expenses = store.get('expenses', []).filter(e => e.date.startsWith(thisMonth));
+  const totalIncome = (setup.gross || 0) + (setup.other || 0);
+  const totalExp = expenses.reduce((s, e) => s + e.amount, 0);
+  const remaining = totalIncome - totalExp;
+  const savingsGoal = setup.savingsGoal || 0;
+
+  document.getElementById('salary-overview').innerHTML = `
+    <div class="salary-row"><span class="salary-label">Monthly Income</span><span class="salary-value salary-positive">฿${fmt(totalIncome)}</span></div>
+    <div class="salary-row"><span class="salary-label">Total Expenses</span><span class="salary-value salary-negative">฿${fmt(totalExp)}</span></div>
+    <div class="salary-row"><span class="salary-label">Remaining</span><span class="salary-value ${remaining >= 0 ? 'salary-positive' : 'salary-negative'}">฿${fmt(remaining)}</span></div>
+    ${savingsGoal > 0 ? `
+    <div style="margin-top:12px"><div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text2);margin-bottom:4px"><span>Savings Goal</span><span>฿${fmt(Math.min(remaining, savingsGoal))} / ฿${fmt(savingsGoal)}</span></div>
+    <div class="salary-bar-wrap"><div class="salary-bar" style="width:${Math.min(100, (remaining / savingsGoal) * 100)}%"></div></div></div>` : ''}
+    <div style="margin-top:12px"><div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text2);margin-bottom:4px"><span>Budget Used</span><span>${totalIncome > 0 ? Math.round((totalExp / totalIncome) * 100) : 0}%</span></div>
+    <div class="salary-bar-wrap"><div class="salary-bar" style="width:${totalIncome > 0 ? Math.min(100, (totalExp / totalIncome) * 100) : 0}%;background:${totalExp > totalIncome ? 'var(--red)' : 'linear-gradient(90deg,var(--accent),var(--accent3))'}"></div></div></div>
+  `;
+}
+
+function renderSalary() {
+  const setup = store.get('salary-setup', {});
+  if (setup.gross) document.getElementById('salary-gross').value = setup.gross;
+  if (setup.other) document.getElementById('salary-other').value = setup.other;
+  if (setup.savingsGoal) document.getElementById('salary-savings-goal').value = setup.savingsGoal;
+  renderSalaryOverview();
+  const thisMonth = new Date().toISOString().slice(0, 7);
+  const expenses = store.get('expenses', []).filter(e => e.date.startsWith(thisMonth)).slice().reverse().slice(0, 10);
+  const catEmoji = { Food: '🍜', Transport: '🚗', Housing: '🏠', Entertainment: '🎬', Education: '📚', Health: '💊', Shopping: '🛍️', Other: '📌' };
+  document.getElementById('expense-list').innerHTML = expenses.length
+    ? expenses.map(e => `
+      <div class="salary-row">
+        <span>${catEmoji[e.cat] || '📌'} <span style="color:var(--text2);font-size:12px">${e.cat}</span></span>
+        <span style="flex:1;margin:0 12px;font-size:13px">${e.desc || '—'}</span>
+        <span class="salary-value salary-negative">-฿${fmt(e.amount)}</span>
+        <span class="todo-del" onclick="deleteExpense('${e.id}')" style="margin-left:8px">×</span>
+      </div>`).join('')
+    : '<div class="empty">No expenses this month</div>';
+}
+
+function openAddCourse() {
+  editingCourseId = null;
+  ['course-name', 'course-credits', 'course-notes', 'course-semester', 'course-progress'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('course-grade').value = '';
+  document.getElementById('modal-course').classList.add('open');
+}
+
+function saveCourse() {
+  const name = document.getElementById('course-name').value.trim();
+  const credits = parseInt(document.getElementById('course-credits').value) || 3;
+  if (!name) { toast('Please enter course name'); return; }
+  const courses = store.get('mba-courses', []);
+  const data = {
+    name, credits, grade: document.getElementById('course-grade').value,
+    semester: document.getElementById('course-semester').value.trim(),
+    progress: parseInt(document.getElementById('course-progress').value) || 0,
+    notes: document.getElementById('course-notes').value.trim(),
+  };
+  if (editingCourseId) {
+    const c = courses.find(c => c.id === editingCourseId);
+    if (c) Object.assign(c, data);
+  } else {
+    courses.push({ id: uid(), ...data });
+  }
+  store.set('mba-courses', courses);
+  closeModal('modal-course');
+  renderMBA();
+  toast('Course saved!');
+}
+
+function editCourse(id) {
+  const c = store.get('mba-courses', []).find(c => c.id === id);
+  if (!c) return;
+  editingCourseId = id;
+  document.getElementById('course-name').value = c.name;
+  document.getElementById('course-credits').value = c.credits;
+  document.getElementById('course-grade').value = c.grade || '';
+  document.getElementById('course-semester').value = c.semester || '';
+  document.getElementById('course-progress').value = c.progress || '';
+  document.getElementById('course-notes').value = c.notes || '';
+  document.getElementById('modal-course').classList.add('open');
+}
+
+function deleteCourse(id) {
+  if (!confirm('Delete this course?')) return;
+  store.set('mba-courses', store.get('mba-courses', []).filter(c => c.id !== id));
+  renderMBA();
+}
+
+function renderMBA() {
+  const courses = store.get('mba-courses', []);
+  const graded = courses.filter(c => c.grade && GRADE_POINTS[c.grade] !== undefined);
+  let gpa = '-';
+  if (graded.length) {
+    const totalPts = graded.reduce((s, c) => s + GRADE_POINTS[c.grade] * c.credits, 0);
+    const totalCreds = graded.reduce((s, c) => s + c.credits, 0);
+    gpa = totalCreds > 0 ? (totalPts / totalCreds).toFixed(2) : '-';
+  }
+  document.getElementById('mba-gpa').textContent = gpa;
+
+  const totalCreds = courses.reduce((s, c) => s + (c.credits || 0), 0);
+  const completedCreds = graded.reduce((s, c) => s + c.credits, 0);
+  const totalRequired = store.get('mba-required-credits', 48);
+  document.getElementById('mba-progress-info').innerHTML = `
+    <div class="salary-row"><span class="salary-label">Courses</span><span>${courses.length}</span></div>
+    <div class="salary-row"><span class="salary-label">Completed Credits</span><span>${completedCreds}</span></div>
+    <div class="salary-row"><span class="salary-label">In Progress Credits</span><span>${totalCreds - completedCreds}</span></div>
+    <div style="margin-top:12px">
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text2);margin-bottom:4px">
+        <span>Degree Progress</span><span>${completedCreds} / ${totalRequired} credits</span>
+      </div>
+      <div class="mba-progress-wrap"><div class="mba-progress" style="width:${Math.min(100, (completedCreds / totalRequired) * 100)}%"></div></div>
+    </div>
+    <div style="margin-top:8px;font-size:12px;color:var(--text2)">
+      <input type="number" value="${totalRequired}" onchange="store.set('mba-required-credits', parseInt(this.value)||48); renderMBA()" style="width:70px;display:inline;padding:2px 6px" /> total credits required
+    </div>
+  `;
+
+  const bySemester = {};
+  courses.forEach(c => { const s = c.semester || 'Unsorted'; (bySemester[s] = bySemester[s] || []).push(c); });
+  document.getElementById('mba-courses').innerHTML = Object.entries(bySemester).map(([sem, cs]) => `
+    <div style="margin-bottom:20px">
+      <h3 style="margin-bottom:10px">📅 ${sem}</h3>
+      ${cs.map(c => `
+        <div class="mba-course">
+          <div class="mba-course-header">
+            <div>
+              <div class="mba-course-name">${c.name}</div>
+              <div class="mba-course-meta">${c.credits} credits${c.notes ? ' · ' + c.notes : ''}</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px">
+              ${c.grade ? `<div class="mba-grade">${c.grade}</div>` : `<span style="font-size:12px;color:var(--text2)">${c.progress || 0}%</span>`}
+              <button class="btn btn-ghost btn-sm" onclick="editCourse('${c.id}')">Edit</button>
+              <button class="btn btn-danger btn-sm" onclick="deleteCourse('${c.id}')">Del</button>
+            </div>
+          </div>
+          ${!c.grade ? `<div class="mba-progress-wrap"><div class="mba-progress" style="width:${c.progress || 0}%"></div></div>` : ''}
+        </div>`).join('')}
+    </div>`).join('') || '<div class="empty">No courses added yet. Click "+ Add Course" to start.</div>';
+}
+
+function init() {
+  const now = new Date();
+  document.getElementById('sidebar-date').textContent = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  renderDashboard();
+  renderTodos();
+}
+
+init();
+</script>
+</body>
+</html>
